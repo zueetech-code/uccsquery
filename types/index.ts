@@ -1,3 +1,4 @@
+import { Timestamp } from "firebase/firestore"
 export interface Client {
   company: any
   id: string
@@ -5,7 +6,8 @@ export interface Client {
   status: "active" | "disabled"
   agentUid?: string
   createdAt: string
-  lastSeen?: string
+  lastSeen?: string | null
+  heartbeatStatus?: "online" | "offline"
 }
 
 export interface Agent {
@@ -13,8 +15,12 @@ export interface Agent {
   email: string
   role: string
   clientId: string
+  // from users
   createdAt: string
-  lastLogin?: string
+
+  // 🔥 from agent_heartbeats
+  lastLogin?: string | null
+  heartbeatStatus?: "online" | "offline"
 }
 
 export interface DatabaseConfig {

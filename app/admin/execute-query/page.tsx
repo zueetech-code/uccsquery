@@ -397,6 +397,42 @@ function toSqlValue(value: any) {
 
   return `'${String(value).replace(/'/g, "''")}'`
 }
+const isSelectOnlyQuery = (sql: string) => {
+  const cleaned = sql
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  // Must start with SELECT
+  if (!cleaned.startsWith("select ")) return false;
+
+  // Disallowed keywords
+  const forbidden = [
+    "insert ",
+    "update ",
+    "delete ",
+    "drop ",
+    "alter ",
+    "truncate ",
+    "create ",
+    "grant ",
+    "revoke ",
+  ];
+
+  if (forbidden.some((kw) => cleaned.includes(kw))) return false;
+
+  // Block multiple queries / comments
+  if (
+    cleaned.includes(";") ||
+    cleaned.includes("--") ||
+    cleaned.includes("/*")
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 
 
 
@@ -499,7 +535,7 @@ function toSqlValue(value: any) {
                 loading ||
                 !selectedClientId ||
                 (executionType === "predefined" && !selectedQueryId) ||
-                (executionType === "custom" && !customSql.trim())
+                (executionType === "custom" &&  (!customSql.trim() || !isSelectOnlyQuery(customSql)))
               }
             >
               {loading ? (

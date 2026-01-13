@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +28,8 @@ import {
 import { getFirestore, doc, updateDoc, deleteDoc } from "firebase/firestore"
 import { AssignAgentDialog } from "./assign-agent-dialog"
 import { EditClientDialog } from "./edit-client-dialog"
+import { subscribeLastSeen } from "@/lib/agent-heartbeat"
+
 
 interface ClientsTableProps {
   clients: Client[]
@@ -53,6 +55,16 @@ function formatDate(dateValue: any): string {
     return "Invalid Date"
   }
 }
+function getOnlineStatus(status?: string) {
+  const online = status === "online"
+  
+  return {
+    online,
+    label: online ? "Online" : "Offline",
+  }
+}
+
+
 
 export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
   const { toast } = useToast()
@@ -60,6 +72,8 @@ export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
   const [assignAgentOpen, setAssignAgentOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [liveClients, setLiveClients] = useState<Client[]>(clients)
+
 
   const handleDelete = async () => {
     if (!selectedClient) return
@@ -109,6 +123,30 @@ export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
       })
     }
   }
+   useEffect(() => {
+  // 1️⃣ Sync when parent reloads clients
+  setLiveClients(clients)
+
+  // 2️⃣ Subscribe to heartbeat updates for each client
+  const unsubscribers = clients.map((client) =>
+    subscribeLastSeen(client.id, ({ lastSeen, heartbeatStatus }) => {
+      setLiveClients((prev) =>
+        prev.map((c) =>
+          c.id === client.id
+            ? { ...c, lastSeen, heartbeatStatus: heartbeatStatus as "online" | "offline" | undefined }
+            : c
+        )
+      )
+    })
+  )
+
+  // 3️⃣ Cleanup listeners on unmount / reload
+  return () => {
+    unsubscribers.forEach((unsub) => unsub && unsub())
+  }
+}, [clients])
+
+
 
   if (clients.length === 0) {
     return (
@@ -172,8 +210,30 @@ export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
                     </Button>
                   )}
                 </TableCell>
-                <TableCell className="text-muted-foreground">{formatDate(client.lastSeen)}</TableCell>
-                <TableCell className="text-right">
+                <TableCell>
+                    {(() => {
+                      const { online, label } = getOnlineStatus(client.heartbeatStatus)
+
+                      return (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full ${
+                              online ? "bg-green-500" : "bg-red-500"
+                            }`}
+                          />
+                          <span
+                            className={`text-sm font-medium ${
+                              online ? "text-green-600" : "text-red-600"
+                            }`}
+                          >
+                            {label}
+                          </span>
+                        </div>
+                      )
+                    })()}
+                  </TableCell>
+
+                  <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm">

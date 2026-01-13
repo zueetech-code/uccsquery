@@ -23,6 +23,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { attachAgentHeartbeat } from "@/lib/agent-heartbeat-agents"
+
 
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([])
@@ -65,8 +67,10 @@ export default function AgentsPage() {
           }))
           .filter((u: any) => u.role === "agent") as Agent[]
 
-        setAgents(agentsData)
+        const agentsWithHeartbeat = await attachAgentHeartbeat(agentsData)
+        setAgents(agentsWithHeartbeat)
         return
+
       }
 
       /* ===================== ENGINEER ===================== */
@@ -117,8 +121,10 @@ export default function AgentsPage() {
         })
       )
 
-      const agentsData = agentDocsNested.flat() as Agent[]
-      setAgents(agentsData)
+        const agentsData = agentDocsNested.flat() as Agent[]
+        const agentsWithHeartbeat = await attachAgentHeartbeat(agentsData)
+        setAgents(agentsWithHeartbeat)
+
 
     } catch (error: any) {
       console.error("[v0] Failed to fetch data:", error.message)

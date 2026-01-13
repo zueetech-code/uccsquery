@@ -80,6 +80,27 @@ export default function LogsPage() {
   if (loading) {
     return <div className="flex items-center justify-center h-96">Loading...</div>
   }
+  function formatDateDDMMYYYY(value: any): string {
+  if (!value) return "—"
+
+  let date: Date
+
+  // Firestore Timestamp support
+  if (typeof value === "object" && "toDate" in value) {
+    date = value.toDate()
+  } else {
+    date = new Date(value)
+  }
+
+  if (isNaN(date.getTime())) return "—"
+
+  const dd = String(date.getDate()).padStart(2, "0")
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const yyyy = date.getFullYear()
+
+  return `${dd}-${mm}-${yyyy}`
+}
+
 
   return (
     <div className="space-y-6">
@@ -134,10 +155,10 @@ export default function LogsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(command.createdAt).toLocaleString()}
+                        {formatDateDDMMYYYY(command.createdAt)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {command.completedAt ? new Date(command.completedAt).toLocaleString() : "-"}
+                        {command.completedAt ? formatDateDDMMYYYY(command.completedAt): "-"}
                       </TableCell>
                     </TableRow>
                   ))}

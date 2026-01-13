@@ -16,9 +16,9 @@ const db = admin.firestore();
 
 // 👇 CHANGE THESE VALUES
 const NEW_USER = {
-  email: "agent_kosanam@firebase.com",
-  password: "Agent@123",
-  role: "agent"
+  email: "venkatesh@firebase.com",
+  password: "admin123",
+  role: "engineer"
 };
 
 async function createAgent() {

@@ -72,8 +72,6 @@ export function EngineersTable({ engineers, clients, onUpdate }: EngineersTableP
             <TableRow>
               <TableHead>Email</TableHead>
               <TableHead>Assigned Clients</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead>Last Login</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -102,9 +100,7 @@ export function EngineersTable({ engineers, clients, onUpdate }: EngineersTableP
                       <span className="text-sm text-muted-foreground">No clients assigned</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(engineer.createdAt)}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(engineer.lastLogin)}</TableCell>
-                  <TableCell className="text-right">
+                 <TableCell className="text-right">
                     <Button
                       variant="outline"
                       size="sm"

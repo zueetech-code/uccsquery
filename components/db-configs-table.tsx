@@ -68,6 +68,26 @@ export function DbConfigsTable({ configs, clients, onDelete }: DbConfigsTablePro
     setDeleteDialogOpen(false)
     setSelectedConfig(null)
   }
+  function formatDateDDMMYYYY(value: any): string {
+  if (!value) return "—"
+
+  let date: Date
+
+  // Firestore Timestamp support
+  if (typeof value === "object" && "toDate" in value) {
+    date = value.toDate()
+  } else {
+    date = new Date(value)
+  }
+
+  if (isNaN(date.getTime())) return "—"
+
+  const dd = String(date.getDate()).padStart(2, "0")
+  const mm = String(date.getMonth() + 1).padStart(2, "0")
+  const yyyy = date.getFullYear()
+
+  return `${dd}-${mm}-${yyyy}`
+}
 
   if (configs.length === 0) {
     return (
@@ -109,7 +129,7 @@ export function DbConfigsTable({ configs, clients, onDelete }: DbConfigsTablePro
                   </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {new Date(config.updatedAt).toLocaleDateString()}
+                  {formatDateDDMMYYYY(config.updatedAt)}
                 </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>

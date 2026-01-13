@@ -21,6 +21,7 @@ import {
   getDoc,
 } from "firebase/firestore"
 import { auth } from "@/lib/firebase-client"
+import { attachLastSeen } from "@/lib/agent-heartbeat"
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
@@ -58,8 +59,8 @@ export default function ClientsPage() {
           id: doc.id,
           ...doc.data(),
         })) as Client[]
-
-        setClients(clientsData)
+        const clientsWithLastSeen = await attachLastSeen(clientsData) 
+        setClients(clientsWithLastSeen)
         return
       }
 
@@ -94,8 +95,8 @@ export default function ClientsPage() {
           id: d.id,
           ...d.data(),
         })) as Client[]
-
-      setClients(clientsData)
+        const clientsWithLastSeen = await attachLastSeen(clientsData)
+      setClients(clientsWithLastSeen)
 
     } catch (error) {
       console.error("[v0] Failed to fetch clients:", error)
