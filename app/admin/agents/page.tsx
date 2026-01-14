@@ -23,9 +23,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { attachAgentHeartbeat } from "@/lib/agent-heartbeat-agents"
-
-
 export default function AgentsPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -67,8 +64,8 @@ export default function AgentsPage() {
           }))
           .filter((u: any) => u.role === "agent") as Agent[]
 
-        const agentsWithHeartbeat = await attachAgentHeartbeat(agentsData)
-        setAgents(agentsWithHeartbeat)
+       
+        setAgents(agentsData)
         return
 
       }
@@ -122,8 +119,7 @@ export default function AgentsPage() {
       )
 
         const agentsData = agentDocsNested.flat() as Agent[]
-        const agentsWithHeartbeat = await attachAgentHeartbeat(agentsData)
-        setAgents(agentsWithHeartbeat)
+        setAgents(agentsData)
 
 
     } catch (error: any) {

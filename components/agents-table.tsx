@@ -4,7 +4,9 @@ import type { Agent, Client } from "@/types"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useEffect, useState } from "react"
+import { resolveHeartbeatStatus } from "@/lib/heartbeat"
 import { subscribeAgentHeartbeat } from "@/lib/agent-heartbeat-agents"
+
 
 
 interface AgentsTableProps {
@@ -30,45 +32,40 @@ export function AgentsTable({ agents, clients }: AgentsTableProps) {
       </div>
     )
   }
-  function formatFirestoreDate(value: any): string {
-  if (!value) return "—"
-
-  // Firestore Timestamp
-  if (typeof value === "object" && "toDate" in value) {
-    return value.toDate().toLocaleDateString("en-GB")
-  }
-
-  const date = new Date(value)
-  return isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-GB")
-}
-function getOnlineStatus(status?: string) {
-  const online = status === "online"
-  return {
-    online,
-    label: online ? "Online" : "Offline",
-  }
-}
 
 
-  useEffect(() => {
-  setLiveAgents(agents)
+            useEffect(() => {
+            // sync when parent reloads
+            setLiveAgents(agents)
 
-  const unsubscribers = agents.map((agent) =>
-          subscribeAgentHeartbeat(agent.uid, ({ lastLogin, heartbeatStatus }) => {
-            setLiveAgents((prev) =>
-              prev.map((a) =>
-                a.uid === agent.uid
-                  ? { ...a, lastLogin, heartbeatStatus: heartbeatStatus as "online" | "offline" | undefined }
-                  : a
-              )
+            // realtime lastSeen updates
+            const unsubscribers = agents.map((agent) =>
+              subscribeAgentHeartbeat(agent.uid, (lastLogin) => {
+                setLiveAgents((prev) =>
+                  prev.map((a) =>
+                    a.uid === agent.uid ? { ...a, lastLogin } : a
+                  )
+                )
+              })
             )
-          })
-        )
 
-        return () => {
-          unsubscribers.forEach((unsub) => unsub && unsub())
-        }
-      }, [agents])
+            // ⏱ UI TIMER (CRITICAL)
+            const interval = setInterval(() => {
+              setLiveAgents((prev) =>
+                prev.map((a) => ({
+                  ...a,
+                  isOnline:
+                    resolveHeartbeatStatus(a.lastLogin) === "online",
+                }))
+              )
+            }, 60_000)
+
+            return () => {
+              unsubscribers.forEach((u) => u && u())
+              clearInterval(interval)
+            }
+          }, [agents])
+
 
       function formatDateDDMMYYYY(value: any): string {
   if (!value) return "—"
@@ -116,7 +113,8 @@ function getOnlineStatus(status?: string) {
               <TableCell className="text-muted-foreground">{formatDateDDMMYYYY(agent.createdAt)}</TableCell>
               <TableCell>
                   {(() => {
-                    const { online, label } = getOnlineStatus(agent.heartbeatStatus)
+                    const online =
+                      resolveHeartbeatStatus(agent.lastLogin) === "online"
 
                     return (
                       <div className="flex items-center gap-2">
@@ -130,12 +128,13 @@ function getOnlineStatus(status?: string) {
                             online ? "text-green-600" : "text-red-600"
                           }`}
                         >
-                          {label}
+                          {online ? "Online" : "Offline"}
                         </span>
                       </div>
                     )
                   })()}
                 </TableCell>
+
 
             </TableRow>
           ))}

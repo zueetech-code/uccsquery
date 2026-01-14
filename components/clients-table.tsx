@@ -1,6 +1,7 @@
 "use client"
 
 import type { Client } from "@/types"
+import { resolveHeartbeatStatus } from "@/lib/heartbeat"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,35 +36,6 @@ interface ClientsTableProps {
   clients: Client[]
   onUpdate: () => void
 }
-
-function formatDate(dateValue: any): string {
-  if (!dateValue) return "Never"
-
-  try {
-    if (dateValue && typeof dateValue === "object" && "toDate" in dateValue) {
-      return dateValue.toDate().toLocaleDateString()
-    }
-
-    const date = new Date(dateValue)
-    if (isNaN(date.getTime())) {
-      return "Invalid Date"
-    }
-
-    return date.toLocaleDateString()
-  } catch (error) {
-    console.error("[v0] Date formatting error:", error)
-    return "Invalid Date"
-  }
-}
-function getOnlineStatus(status?: string) {
-  const online = status === "online"
-  
-  return {
-    online,
-    label: online ? "Online" : "Offline",
-  }
-}
-
 
 
 export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
@@ -123,29 +95,37 @@ export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
       })
     }
   }
-   useEffect(() => {
-  // 1️⃣ Sync when parent reloads clients
-  setLiveClients(clients)
+        useEffect(() => {
+        // sync when parent reloads
+        setLiveClients(clients)
 
-  // 2️⃣ Subscribe to heartbeat updates for each client
-  const unsubscribers = clients.map((client) =>
-    subscribeLastSeen(client.id, ({ lastSeen, heartbeatStatus }) => {
-      setLiveClients((prev) =>
-        prev.map((c) =>
-          c.id === client.id
-            ? { ...c, lastSeen, heartbeatStatus: heartbeatStatus as "online" | "offline" | undefined }
-            : c
+        // realtime lastSeen subscription
+        const unsubscribers = clients.map((client) =>
+          subscribeLastSeen(client.id, (lastSeen) => {
+            setLiveClients((prev) =>
+              prev.map((c) =>
+                c.id === client.id ? { ...c, lastSeen } : c
+              )
+            )
+          })
         )
-      )
-    })
-  )
 
-  // 3️⃣ Cleanup listeners on unmount / reload
-  return () => {
-    unsubscribers.forEach((unsub) => unsub && unsub())
-  }
-}, [clients])
+        // ⏱ UI TIMER — detects crash / power cut
+        const interval = setInterval(() => {
+          setLiveClients((prev) =>
+            prev.map((c) => ({
+              ...c,
+              // 👇 status is DERIVED, not stored
+              isOnline: resolveHeartbeatStatus(c.lastSeen) === "online",
+            }))
+          )
+        }, 60_000)
 
+        return () => {
+          unsubscribers.forEach((u) => u && u())
+          clearInterval(interval)
+        }
+      }, [clients])
 
 
   if (clients.length === 0) {
@@ -174,7 +154,8 @@ export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {clients.map((client) => (
+            {liveClients.map((client) => (
+              
               <TableRow key={client.id}>
                 <TableCell className="font-medium">{client.name}</TableCell>
                 <TableCell className="font-mono text-sm text-muted-foreground">{client.id}</TableCell>
@@ -210,9 +191,9 @@ export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
                     </Button>
                   )}
                 </TableCell>
-                <TableCell>
+                  <TableCell>
                     {(() => {
-                      const { online, label } = getOnlineStatus(client.heartbeatStatus)
+                      const online = resolveHeartbeatStatus(client.lastSeen) === "online"
 
                       return (
                         <div className="flex items-center gap-2">
@@ -226,12 +207,13 @@ export function ClientsTable({ clients, onUpdate }: ClientsTableProps) {
                               online ? "text-green-600" : "text-red-600"
                             }`}
                           >
-                            {label}
+                            {online ? "Online" : "Offline"}
                           </span>
                         </div>
                       )
                     })()}
                   </TableCell>
+
 
                   <TableCell className="text-right">
                   <DropdownMenu>
