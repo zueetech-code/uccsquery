@@ -2,67 +2,66 @@ import { NextResponse } from "next/server"
 import { adminDb } from "@/lib/firebase-admin"
 
 export async function POST(req: Request) {
-
-  /* 🔐 STEP 1: API KEY SECURITY */
   const apiKey = req.headers.get("x-api-key")
   if (apiKey !== process.env.PULL_API_KEY) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    )
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  /* 📥 STEP 2: READ INPUT */
-  const { clientName } = await req.json()
+  const { clientNames } = await req.json()
 
-  if (!clientName) {
-    return NextResponse.json(
-      { error: "clientName is required" },
-      { status: 400 }
-    )
+  if (!Array.isArray(clientNames) || clientNames.length === 0) {
+    return NextResponse.json({ error: "clientNames array is required" }, { status: 400 })
   }
 
-  /* 🔎 STEP 3: GET agentUid FROM clients */
-  const clientSnap = await adminDb
-    .collection("clients")
-    .where("name", "==", clientName)
-    .limit(1)
-    .get()
+  // Map each clientName to a Promise that fetches its data
+  const promises = clientNames.map(async (clientName) => {
+    try {
+      // Step 3: Get agentUid from clients
+      const clientSnap = await adminDb
+        .collection("clients")
+        .where("name", "==", clientName)
+        .limit(1)
+        .get()
 
-  if (clientSnap.empty) {
-    return NextResponse.json(
-      { error: "Client not found" },
-      { status: 404 }
-    )
-  }
+      if (clientSnap.empty) {
+        return { clientName, error: "Client not found" }
+      }
 
-  const agentUid = clientSnap.docs[0].data().agentUid
+      const agentUid = clientSnap.docs[0].data().agentUid
 
-  /* 🔎 STEP 4: GET LATEST QUERY RESULT USING agentUid */
-  const resultSnap = await adminDb
-    .collection("temp_query_results")
-    .where("agentUid", "==", agentUid)
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get()
+      // Step 4: Get latest query result using agentUid
+      const resultSnap = await adminDb
+        .collection("temp_query_results")
+        .where("agentUid", "==", agentUid)
+        .orderBy("createdAt", "desc")
+        .limit(1)
+        .get()
 
-  if (resultSnap.empty) {
-    return NextResponse.json(
-      { error: "No data found for client" },
-      { status: 404 }
-    )
-  }
+      if (resultSnap.empty) {
+        return { clientName, error: "No data found for client" }
+      }
 
-  const resultDoc = resultSnap.docs[0]
+      const resultDoc = resultSnap.docs[0]
 
-  /* 📦 STEP 5: READ rows SUBCOLLECTION */
-  const rowsSnap = await resultDoc.ref.collection("rows").get()
+      // Step 5: Read rows subcollection
+      const rowsSnap = await resultDoc.ref.collection("rows").get()
+      const data = rowsSnap.docs.map(doc => doc.data())
 
-  const data = rowsSnap.docs.map(doc => doc.data())
+      return { clientName, data }
 
-  /* 📤 STEP 6: RETURN RESPONSE */
-  return NextResponse.json({
-    clientName,
-    data
+    } catch (error) {
+      return { clientName, error: "Internal server error" }
+    }
   })
+
+  // Wait for all queries to finish
+  const resultsArray = await Promise.all(promises)
+
+  // Optionally, convert results array to an object keyed by clientName
+  const results = resultsArray.reduce((acc, item) => {
+    acc[item.clientName] = item.error ? { error: item.error } : { data: item.data }
+    return acc
+  }, {} as Record<string, any>)
+
+  return NextResponse.json(results)
 }
