@@ -34,7 +34,7 @@ export function AgentsTable({ agents, clients }: AgentsTableProps) {
   }
 
 
-            useEffect(() => {
+           useEffect(() => {
             // sync when parent reloads
             setLiveAgents(agents)
 
@@ -49,22 +49,11 @@ export function AgentsTable({ agents, clients }: AgentsTableProps) {
               })
             )
 
-            // ⏱ UI TIMER (CRITICAL)
-            const interval = setInterval(() => {
-              setLiveAgents((prev) =>
-                prev.map((a) => ({
-                  ...a,
-                  isOnline:
-                    resolveHeartbeatStatus(a.lastLogin) === "online",
-                }))
-              )
-            }, 60_000)
-
             return () => {
               unsubscribers.forEach((u) => u && u())
-              clearInterval(interval)
             }
           }, [agents])
+
 
 
       function formatDateDDMMYYYY(value: any): string {
