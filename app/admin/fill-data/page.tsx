@@ -1,10 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal } from "react"
 import { db, auth } from "@/lib/firebase-client"
 import { setDoc } from "firebase/firestore"
 import {  orderBy, limit } from "firebase/firestore"
 import * as XLSX from "xlsx"
+import { useRouter } from "next/navigation"
+import { signOut } from "firebase/auth"
+import { writeBatch } from "firebase/firestore"
+
 
 import {
   collection,
@@ -44,6 +48,21 @@ export default function FillDataPage() {
   const [reportDate, setReportDate] = useState("")
   const [showPreview, setShowPreview] = useState(false)
   const [previewStep, setPreviewStep] = useState(0)
+  const router = useRouter()
+  const [submitting, setSubmitting] = useState(false)
+  const meta = { SDSCode: sdsCode, Date: reportDate }
+  const [clientName, setClientName] = useState("")
+  const isClientReady = clientName.trim().length > 0
+  const [saveOptions, setSaveOptions] = useState({
+  online: true,
+  offline: false
+})
+  
+  
+
+
+  
+
 
 
   const [fetchedData, setFetchedData] = useState<any>({
@@ -62,22 +81,38 @@ export default function FillDataPage() {
     jewel: []
   })
 
- /* ================= NPA ================= */
-  const [npaData, setNpaData] = useState({
-    SDSCode: "",
-    Date: "",
-    GNPA: {amount: "", percent: ""},
-    NNPA: {amount: "", percent: ""},
-    ProvisionPercent: "",
-    TotalOverdue:{  count: "", amount: "" },
-    NoActionTaken:{  count: "", amount: "" },
-    RegisteredNoticesSent:{  count: "", amount: "" },
-    ActionTaken: {
-      ARC: {  count: "", amount: "" },
-      DECREE: {  count: "", amount: "" },
-      EP: {  count: "", amount: "" }
-    }
-  })
+/* ================= NPA ================= */
+interface NPAData {
+  SDSCode: string;
+  Date: string;
+  GNPA: { amount: string; percent: string };
+  NNPA: { amount: string; percent: string };
+  ProvisionPercent: string;
+  TotalOverdue: { count: string; amount: string };
+  NoActionTaken: { count: string; amount: string };
+  RegisteredNoticesSent: { count: string; amount: string };
+  ActionTaken: {
+    ARC: { count: string; amount: string };
+    DECREE: { count: string; amount: string };
+    EP: { count: string; amount: string };
+  };
+}
+
+const [npaData, setNpaData] = useState<NPAData>({
+  SDSCode: "",
+  Date: "",
+  GNPA: {amount: "", percent: ""},
+  NNPA: {amount: "", percent: ""},
+  ProvisionPercent: "",
+  TotalOverdue:{  count: "", amount: "" },
+  NoActionTaken:{  count: "", amount: "" },
+  RegisteredNoticesSent:{  count: "", amount: "" },
+  ActionTaken: {
+    ARC: {  count: "", amount: "" },
+    DECREE: {  count: "", amount: "" },
+    EP: {  count: "", amount: "" }
+  }
+})
 
   /* ================= PROFIT ================= */
   const [profitData, setProfitData] = useState({
@@ -126,6 +161,10 @@ export default function FillDataPage() {
       if (!userDoc.exists()) return
 
       setClientId(userDoc.data().clientId)
+      const clientdoc = await getDoc(doc(db, "clients", userDoc.data().clientId))
+      if (!clientdoc.exists()) return
+      setClientName(clientdoc.data().name)
+
 
       const snap = await getDocs(collection(db, "queries"))
       const filtered = snap.docs
@@ -165,10 +204,29 @@ export default function FillDataPage() {
       setTimeout(() => {
         unsubscribe()
         reject(new Error("Query timeout"))
-      }, 240000)
+      }, 6000000)
     })
   }
 
+  const handleBack = () => {
+  router.back() // go to previous page
+  // OR router.push("/dashboard") if you want fixed route
+}
+const deriveColumnOrder = (rows: any[]) => {
+  if (!rows || rows.length === 0) return []
+  return Object.keys(rows[0])
+}
+
+const handleLogout = async () => {
+  try {
+    await signOut(auth)
+    router.push("/") // redirect to login page
+  } catch (error) {
+    console.error("Logout error:", error)
+  }
+}
+
+   
   /* ================= FETCH RESULT ================= */
   const fetchResultFromTemp = async (commandId: string) => {
 
@@ -272,41 +330,30 @@ export default function FillDataPage() {
       //Handle Preview and Download
 
       const handlePreviewOk = async () => {
-        await handleSubmitReport()   // ✅ your existing save logic
-        downloadExcel()              // ✅ Excel download
-        setShowPreview(false)
-        setPreviewStep(0)
-      }
+                try {
+                    setSubmitting(true)          // 🔥 START LOADING
+                    setShowPreview(false)        // close preview immediately
 
+                    await handleSubmitReport()   // save to Firestore
+                    downloadExcel()              // download Excel
 
-     const PreviewTable = ({ title, data }: any) => (
-        <>
-          <h3 className="font-semibold mb-2">{title}</h3>
-          <table className="w-full border text-sm">
-            <tbody>
-              {data.map((row: any, i: number) => (
-                <tr key={i}>
-                  {Object.values(row).map((v: any, j: number) => (
-                    <td key={j} className="border px-2 py-1">{String(v)}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )
+                } catch (err) {
+                    console.error(err)
+                    alert("Submission failed")
+                } finally {
+                    setSubmitting(false)         // 🔥 STOP LOADING
+                    setPreviewStep(0)
+                }
+                }
 
-      const PreviewObject = ({ title, data }: any) => (
-        <>
-          <h3 className="font-semibold mb-2">{title}</h3>
-          {Object.entries(data).map(([k, v]) => (
-            <p key={k}>
-              <b>{k}:</b> {JSON.stringify(v)}
-            </p>
-          ))}
-        </>
-      )
-      const NPA_FIELDS = [
+      const syncMetaIntoTabs = () => {
+          setNpaData(p => ({ ...p, SDSCode: sdsCode, Date: reportDate }))
+          setProfitData(p => ({ ...p, SDSCode: sdsCode, Date: reportDate }))
+          setSafetyData(p => ({ ...p, SDSCode: sdsCode, Date: reportDate }))
+          setEmpData(p => ({ ...p, SDSCode: sdsCode, Date: reportDate }))
+        }
+
+      const NPA_FIELDS: [string, (d: any) => any][] = [
           ["SDS Code", (d: any) => d.SDSCode],
           ["Date", (d: any) => d.Date],
           ["GNPA Amount", (d: any) => d.GNPA.amount],
@@ -328,7 +375,7 @@ export default function FillDataPage() {
           ["EP Amount", (d: any) => d.ActionTaken.EP.amount],
         ]
 
-        const PROFIT_FIELDS = [
+        const PROFIT_FIELDS: [string, (d: any) => any][] = [
           ["SDS Code", (d: any) => d.SDSCode],
           ["Date", (d: any) => d.Date],
           ["CD Ratio", (d: any) => d.CDRatio],
@@ -340,7 +387,7 @@ export default function FillDataPage() {
           ["Current Loss with Accumulated Loss", (d: any) => d.ProfitLoss.CurrentLossWithAccumulatedLoss],
         ]
 
-        const EMP_FIELDS = [
+        const EMP_FIELDS: [string, (d: any) => any][] = [
           ["SDS Code", (d: any) => d.SDSCode],
           ["Date", (d: any) => d.Date],
           ["Approved Cadre Strength", (d: any) => d.ApprovedCadreStrength],
@@ -348,7 +395,7 @@ export default function FillDataPage() {
           ["Vacant", (d: any) => d.Vacant],
         ]
 
-        const SAFETY_FIELDS = [
+        const SAFETY_FIELDS: [string, (d: any) => any][] = [
           ["SDS Code", (d: any) => d.SDSCode],
           ["Date", (d: any) => d.Date],
           ["Safety Locker", (d: any) => d.SafetyLocker],
@@ -375,7 +422,7 @@ export default function FillDataPage() {
               <h3 className="font-semibold mb-2">{title}</h3>
 
               <div className="overflow-x-auto border">
-                <table className="table-auto border-collapse w-full text-sm">
+                <table className="table-auto border-collapse w-full">
                   <thead>
                     <tr>
                       {columns.map((col, i) => (
@@ -393,7 +440,7 @@ export default function FillDataPage() {
                     {data.map((row, rIdx) => (
                       <tr key={rIdx}>
                         {columns.map((col, cIdx) => (
-                          <td key={cIdx} className="border px-2 py-1">
+                          <td key={cIdx} className="border px-2 py-1 align-middle">
                             {row[col] ?? ""}
                           </td>
                         ))}
@@ -416,7 +463,7 @@ export default function FillDataPage() {
         }) => (
           <div className="mb-6">
             <h3 className="font-semibold mb-3">{title}</h3>
-            <table className="border w-full text-sm">
+            <table className="table-auto border-collapse w-full">
               <tbody>
                 {fields.map(([label, getter], i) => (
                   <tr key={i}>
@@ -435,12 +482,17 @@ export default function FillDataPage() {
 
 
   /* ================= HANDLE GET DATA ================= */
- const handleGetData = async () => {
+ const handleGetDataOnline = async () => {
 
+  if (!clientName || !Fromdate) {
+  alert("Client Name or From Date not ready")
+  return
+}
   if (loading) return
   if (!Fromdate) return
 
   setLoading(true)
+  
 
   const newData: any = {
     branch: [],
@@ -452,7 +504,7 @@ export default function FillDataPage() {
 
   try {
 
-    const docId = `${clientId}_${Fromdate}`
+    const docId = `${clientName}_${Fromdate}`
 
     let branchResult: any = null
     let combined: any = null
@@ -537,7 +589,7 @@ export default function FillDataPage() {
     const latestSnap = await getDocs(
       query(
         collection(db, "final_reports"),
-        where("clientId", "==", clientId),
+        where("clientName", "==", clientName),
         orderBy("updatedAt", "desc"),
         limit(1)
       )
@@ -606,9 +658,9 @@ export default function FillDataPage() {
 
     const allRows = combined.rows
 
-    newData.member = allRows.filter((r: { type: string }) => r.type === "Members")
-    newData.deposit = allRows.filter((r: { type: string }) => r.type === "Deposits")
-    newData.loan = allRows.filter((r: { type: string }) => r.type === "Loans")
+    newData.member = allRows.filter((r: { modules: string }) => r.modules === "Members")
+    newData.deposit = allRows.filter((r: { modules: string }) => r.modules === "Deposits")
+    newData.loan = allRows.filter((r: { modules: string }) => r.modules === "Loans")
 
     setProgress("Executing Jewel query...")
 
@@ -643,9 +695,11 @@ export default function FillDataPage() {
 
       setSdsCode(code)
     }
+    
     setReportDate(Fromdate)
 
-  } catch (error) {
+  }
+   catch (error) {
     console.error(error)
     setProgress("Error while executing queries")
   }
@@ -653,87 +707,293 @@ export default function FillDataPage() {
   setLoading(false)
 }
 
+const formatDateOnly = (value: any) => {
+  if (!value) return ""
+  if (typeof value === "string" && value.includes("T")) {
+    return value.split("T")[0] // YYYY-MM-DD
+  }
+  return value
+}
 
-//Summit to Reports
- const handleSubmitReport = async () => {
 
-  if (!clientId || !Fromdate) {
-    alert("Client ID or From Date missing")
-    return
+const handleGetDataOffline = async (): Promise<boolean> => {
+  if (!clientName || !Fromdate) {
+    alert("Client Name or From Date not ready")
+    return false
   }
 
   try {
+    setLoading(true)
+    setProgress("Loading from local server...")
 
-    const docId = `${clientId}_${Fromdate}`
+    const res = await fetch("/api/get-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientName,
+        fromDate: Fromdate
+      })
+    })
 
-    const reportRef = doc(db, "final_reports", docId)
-    const existingDoc = await getDoc(reportRef)
-
-    // 🔥 FORCE DATE & SDS INTO ALL TAB OBJECTS
-    const updatedNpa = {
-      ...npaData,
-      SDSCode: npaData.SDSCode || "",
-      Date: npaData.Date || Fromdate
+    if (!res.ok) {
+      return false
     }
 
-    const updatedProfit = {
-      ...profitData,
-      SDSCode: profitData.SDSCode || "",
-      Date: profitData.Date || Fromdate
+    const data = await res.json()
+
+    // 🔥 Check if empty
+    if (!data || !data.branch || data.branch.length === 0) {
+      return false
     }
 
-    const updatedSafety = {
-      ...safetyData,
-      SDSCode: safetyData.SDSCode || "",
-      Date: safetyData.Date || Fromdate
+    // 🔥 Populate state
+    // 🔥 Populate table data
+const normalizeRows = (rows: any[]) =>
+  rows.map(row => {
+    const cleaned: any = {}
+    for (const key in row) {
+      cleaned[key] =
+        key.toLowerCase().includes("date") || key.toLowerCase().includes("created_at") || key.toLowerCase().includes("modified_at")
+          ? formatDateOnly(row[key])
+          : row[key]
+    }
+    return cleaned
+  })
+
+setFetchedData({
+  branch: normalizeRows(data.branch || []),
+  member: normalizeRows(data.member || []),
+  deposit: normalizeRows(data.deposit || []),
+  loan: normalizeRows(data.loan || []),
+  jewel: normalizeRows(data.jewel || [])
+})
+
+// 🔥 Generate column orders from local DB rows
+setColumnOrders({
+  branch: deriveColumnOrder(data.branch),
+  member: deriveColumnOrder(data.member),
+  deposit: deriveColumnOrder(data.deposit),
+  loan: deriveColumnOrder(data.loan),
+  jewel: deriveColumnOrder(data.jewel),
+})
+const sds = data.sdsCode || ""
+const date = data.fromDate || Fromdate
+
+setSdsCode(sds)
+setReportDate(date)
+
+setNpaData(prev => ({ ...prev, ...data.npa, SDSCode: sds, Date: date }))
+setProfitData(prev => ({ ...prev, ...data.profit, SDSCode: sds, Date: date }))
+setSafetyData(prev => ({ ...prev, ...data.safety, SDSCode: sds, Date: date }))
+setEmpData(prev => ({ ...prev, ...data.emp, SDSCode: sds, Date: date }))
+    setProgress("Loaded from offline server")
+    return true
+
+  } catch (err) {
+    console.error(err)
+    return false
+  } finally {
+    setLoading(false)
+  }
+}
+const handleGetData = async () => {
+
+  if (!saveOptions.online && !saveOptions.offline) {
+    alert("Please select at least one mode")
+    return
+  }
+
+  // 🔵 OFFLINE ONLY
+  if (!saveOptions.online && saveOptions.offline) {
+    const found = await handleGetDataOffline()
+
+    if (!found) {
+      console.log("Offline data not found → Running online mode...")
+      await handleGetDataOnline()
     }
 
-    const updatedEmp = {
-      ...empdata,
-      SDSCode: empdata.SDSCode || "",
-      Date: empdata.Date || Fromdate
-    }
+    return
+  }
 
-    const reportData = {
-      clientId,
+  // 🟢 ONLINE ONLY
+  if (saveOptions.online && !saveOptions.offline) {
+    await handleGetDataOnline()
+    return
+  }
+
+  // 🟣 BOTH SELECTED
+  if (saveOptions.online && saveOptions.offline) {
+    const found = await handleGetDataOffline()
+
+    if (!found) {
+      alert("Offline data not found. Loaded from Online source.")
+      await handleGetDataOnline()
+    }
+  }
+}
+const saveToFirebase = async () => {
+  const docId = `${clientName}_${Fromdate}`
+  const reportRef = doc(db, "final_reports", docId)
+  const existingDoc = await getDoc(reportRef)
+
+  const updatedNpa = {
+    ...npaData,
+    SDSCode: sdsCode,
+    Date: npaData.Date || Fromdate
+  }
+
+  const updatedProfit = {
+    ...profitData,
+    SDSCode: sdsCode,
+    Date: profitData.Date || Fromdate
+  }
+
+  const updatedSafety = {
+    ...safetyData,
+    SDSCode: sdsCode,
+    Date: safetyData.Date || Fromdate
+  }
+
+  const updatedEmp = {
+    ...empdata,
+    SDSCode: sdsCode,
+    Date: empdata.Date || Fromdate
+  }
+
+  const reportData = {
+    clientName,
+    fromDate: Fromdate,
+    updatedBy: agentUid,
+    updatedAt: serverTimestamp(),
+
+    branch: fetchedData.branch,
+    member: fetchedData.member,
+    deposit: fetchedData.deposit,
+    loan: fetchedData.loan,
+    jewel: fetchedData.jewel,
+
+    branchColumnOrder: columnOrders.branch || [],
+    memberColumnOrder: columnOrders.member || [],
+    depositColumnOrder: columnOrders.deposit || [],
+    loanColumnOrder: columnOrders.loan || [],
+    jewelColumnOrder: columnOrders.jewel || [],
+
+    npa: updatedNpa,
+    profit: updatedProfit,
+    safety: updatedSafety,
+    emp: updatedEmp
+  }
+
+  if (!existingDoc.exists()) {
+    await setDoc(reportRef, {
+      ...reportData,
+      createdBy: agentUid,
+      createdAt: serverTimestamp()
+    })
+  } else {
+    await setDoc(reportRef, reportData, { merge: true })
+  }
+
+  return { updatedEmp, updatedNpa, updatedProfit, updatedSafety }
+}
+
+const saveToLocalServer = async (updatedData: { updatedEmp: any; updatedNpa: any; updatedProfit: any; updatedSafety: any }) => {
+  await fetch("/api/save-report", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      clientName,
       fromDate: Fromdate,
-
-      updatedBy: agentUid,
-      updatedAt: serverTimestamp(),
-
       branch: fetchedData.branch,
       member: fetchedData.member,
       deposit: fetchedData.deposit,
       loan: fetchedData.loan,
       jewel: fetchedData.jewel,
+      emp: updatedData.updatedEmp,
+      npa: updatedData.updatedNpa,
+      profit: updatedData.updatedProfit,
+      safety: updatedData.updatedSafety,
+    }),
+  })
+}
+const deleteTempQueryResults = async () => {
+  const q = query(
+    collection(db, "temp_query_results"),
+    where("originalAgentUid", "==", agentUid)
+  )
 
-      // 🔥 SAVE COLUMN ORDERS
-      branchColumnOrder: columnOrders.branch || [],
-      memberColumnOrder: columnOrders.member || [],
-      depositColumnOrder: columnOrders.deposit || [],
-      loanColumnOrder: columnOrders.loan || [],
-      jewelColumnOrder: columnOrders.jewel || [],
+  const snap = await getDocs(q)
 
-      // 🔥 SAVE UPDATED TAB DATA
-      npa: updatedNpa,
-      profit: updatedProfit,
-      safety: updatedSafety,
-      emp: updatedEmp
+  const batch = writeBatch(db)
+
+  for (const docSnap of snap.docs) {
+    const parentId = docSnap.id
+
+    const rowsSnap = await getDocs(
+      collection(db, "temp_query_results", parentId, "rows")
+    )
+
+    rowsSnap.docs.forEach(rowDoc => {
+      batch.delete(rowDoc.ref)
+    })
+
+    batch.delete(docSnap.ref)
+  }
+
+  await batch.commit()
+}
+
+//Summit to Reports
+const handleSubmitReport = async () => {
+  if (!clientName || !Fromdate) {
+    alert("Client Name or From Date missing")
+    return
+  }
+
+  if (!saveOptions.online && !saveOptions.offline) {
+    alert("Please select at least one save option")
+    return
+  }
+
+  try {
+    let updatedData: any = {
+      updatedEmp: empdata,
+      updatedNpa: npaData,
+      updatedProfit: profitData,
+      updatedSafety: safetyData
     }
 
-    if (!existingDoc.exists()) {
-      await setDoc(reportRef, {
-        ...reportData,
-        createdBy: agentUid,
-        createdAt: serverTimestamp()
-      })
+    // 🔥 If Online selected → Save to Firebase
+    if (saveOptions.online) {
+      updatedData = await saveToFirebase()
+      await deleteTempQueryResults()
+    }
+
+    // 🔥 If Offline selected → Save to API
+    if (saveOptions.offline) {
+      await saveToLocalServer(updatedData)
+    }
+
+    // 🔥 Success Message
+    if (saveOptions.online && saveOptions.offline) {
+      alert("Saved to BOTH Online and Local Server successfully!")
+    } else if (saveOptions.online) {
+      alert("Saved to Online successfully!")
     } else {
-      await setDoc(reportRef, reportData, { merge: true })
+      alert("Saved to Local Server successfully!")
     }
 
-    alert("Report saved successfully!")
+    resetall()
+    setFromdate("")
+    setActiveTab("branch")
 
-      // 🔥 CLEAR EVERYTHING AFTER SAVE
+  } catch (error) {
+    console.error(error)
+    alert("Error saving report")
+  }
+}
+const resetall = () => {
+  // 🔥 CLEAR EVERYTHING AFTER SAVE
       setFetchedData({
         branch: [],
         member: [],
@@ -797,19 +1057,7 @@ export default function FillDataPage() {
         Filled: "",
         Vacant: ""
       })
-
-      // Optional: Reset Fromdate also
-      setFromdate("")
-
-      // Optional: Go back to branch tab
-      setActiveTab("branch")
-
-
-  } catch (error) {
-    console.error(error)
-    alert("Error saving report")
-  }
-}
+    }
 
 
 
@@ -817,75 +1065,98 @@ export default function FillDataPage() {
 const renderTable = (tab: string) => {
   const data = fetchedData[tab] || [];
   const columns = columnOrders[tab] || [];
-  const isEditable = tab === "branch"; // 🔥 only branch editable
+  const isEditable = tab === "branch";
 
   if (!data.length)
-    return <p className="text-muted-foreground">No data available</p>;
+    return (
+      <div className="p-6 text-center text-gray-500 bg-white/50 rounded-xl">
+        No data available
+      </div>
+    );
 
   return (
-    <div className="overflow-x-auto">
+    <div className="space-y-4">
 
-      {/* Date (global, editable if you want) */}
-      <div className="flex items-center mb-2">
-        <Label className="w-64">Date</Label>
-        <Input
-          type="date"
-          className="w-44 h-8 rounded-none"
-          value={reportDate}
-          onChange={(e) => setReportDate(e.target.value)}
-        />
-      </div>
+      {/* Glass Container */}
+      <div className="backdrop-blur-xl bg-white/60 border border-white/30 
+                      rounded-2xl shadow-xl p-6">
 
-      <table className="table-auto border-collapse w-full">
-        <thead>
-          <tr>
-            {columns.map((col, i) => (
-              <th
-                key={i}
-                className="border px-3 py-2 text-left whitespace-nowrap bg-muted"
-              >
-                {col}
-              </th>
-            ))}
-          </tr>
-        </thead>
+        {/* Modern Table */}
+        <div className="overflow-x-auto">
+          <table className="border-collapse w-full table-auto">
 
-        <tbody>
-          {data.map((row, rIdx) => (
-            <tr key={row.id || rIdx}>
-              {columns.map((col, cIdx) => (
-                <td
-                  key={cIdx}
-                  className="border px-2 py-1 whitespace-nowrap"
+            {/* Header */}
+            <thead className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm">
+              <tr className="text-gray-600 text-xs uppercase tracking-wider">
+                {columns.map((col: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, i: Key | null | undefined) => {
+                  // Minimum widths for important columns
+                  const minWidthClasses = {
+                    branchname: "min-w-[150px]",
+                    type: "min-w-[100px]",
+                    schemedescription: "min-w-[250px]",
+                  };
+
+                  const colString = typeof col === "string" ? col.toLowerCase() : "";
+                  const widthClass = minWidthClasses[colString as keyof typeof minWidthClasses] || "";
+
+                  return (
+                    <th
+                      key={i}
+                      className={`border px-3 py-2 text-left bg-muted whitespace-nowrap min-w-[140px] ${widthClass}`}
+                    >
+                      {col}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+
+            {/* Body */}
+            <tbody>
+              {data.map((row: { [x: string]: any; id: any }, rIdx: string | number) => (
+                <tr
+                  key={row.id || rIdx}
+                  className="bg-white/70 backdrop-blur-md 
+                             hover:bg-white hover:shadow-md 
+                             transition-all duration-200 rounded-xl"
                 >
-                  <Input
-                    value={row[col] || ""}
-                    readOnly={!isEditable} // 🔥 READ ONLY FOR NON-BRANCH
-                    disabled={!isEditable}
-                    onChange={(e) => {
-                      if (!isEditable) return;
+                  {columns.map((col: string | number, cIdx: Key | null | undefined) => (
+                    <td
+                      key={cIdx}
+                      className="border px-2 py-1 align-middle"
+                    >
+                      <Input
+                        value={row[col] || ""}
+                        readOnly={!isEditable}
+                        disabled={!isEditable}
+                        onChange={(e) => {
+                          if (!isEditable) return;
 
-                      const updated = data.map(r => ({ ...r }));
-                      updated[rIdx][col] = e.target.value;
+                          const updated = data.map((r: any) => ({ ...r }));
+                          updated[rIdx][col] = e.target.value;
 
-                      setFetchedData(prev => ({
-                        ...prev,
-                        [tab]: updated
-                      }));
-                    }}
-                    className={`min-w-[100px] w-auto border-0 focus:ring-0 ${
-                      !isEditable ? "bg-muted cursor-not-allowed" : ""
-                    }`}
-                  />
-                </td>
+                          setFetchedData((prev: any) => ({
+                            ...prev,
+                            [tab]: updated
+                          }));
+                        }}
+                        className="w-full min-w-[140px] border border-gray-300 rounded px-2 py-1"
+                      />
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+            </tbody>
+
+          </table>
+        </div>
+
+      </div>
     </div>
   );
 };
+
+
 
 
 
@@ -913,10 +1184,13 @@ const renderTabContent = () => {
                     type="date"
                     className="w-44 h-8 rounded-none"
                     value={reportDate}
-                    onChange={(e) =>
-                      setReportDate(e.target.value)
-                    }
+                    onChange={(e) => {
+                    const d = e.target.value
+                    setReportDate(d)
+                    setNpaData(p => ({ ...p, Date: d }))
+                          }}
                   />
+                    
                 </div>
 
                 {/* GNPA / NNPA */}
@@ -997,9 +1271,9 @@ const renderTabContent = () => {
 
                 {/* Count / Amount Sections */}
                 {[
-                  { label: "Total Overdue", key: "TotalOverdue" },
-                  { label: "No Action Taken", key: "NoActionTaken" },
-                  { label: "Registered Notices Sent", key: "RegisteredNoticesSent" },
+                  { label: "Total Overdue", key: "TotalOverdue" as const },
+                  { label: "No Action Taken", key: "NoActionTaken" as const },
+                  { label: "Registered Notices Sent", key: "RegisteredNoticesSent" as const },
                 ].map((item) => (
                   <div key={item.key} className="grid grid-cols-2 gap-y-4">
 
@@ -1044,9 +1318,9 @@ const renderTabContent = () => {
                 <div className="border-t pt-4" />
 
                 {[
-                  { label: "ARC", key: "ARC" },
-                  { label: "DECREE", key: "DECREE" },
-                  { label: "EP", key: "EP" },
+                  { label: "ARC", key: "ARC" as const },
+                  { label: "DECREE", key: "DECREE" as const },
+                  { label: "EP", key: "EP" as const },
                 ].map((item) => (
                   <div key={item.key} className="grid grid-cols-2 gap-y-4">
 
@@ -1116,8 +1390,11 @@ const renderTabContent = () => {
                     type="date"
                     className="w-44 h-8 rounded-none"
                     value={reportDate}
-                    onChange={(e) =>
-                      setReportDate(e.target.value)
+                    onChange={(e) => {
+                    const d = e.target.value
+                    setReportDate(d)
+                    setProfitData(p => ({ ...p, Date: d }))
+                          }
                     }
                   />
                 </div>
@@ -1260,9 +1537,11 @@ const renderTabContent = () => {
                     type="date"
                     className="w-44 h-8 rounded-none"
                     value={reportDate}
-                    onChange={(e) =>
-                      setReportDate(e.target.value)
-                    }
+                    onChange={(e) => {
+                    const d = e.target.value
+                    setReportDate(d)
+                    setEmpData(p => ({ ...p, Date: d }))
+                          }}
                   />
                 </div>
 
@@ -1331,9 +1610,11 @@ const renderTabContent = () => {
                     type="date"
                     className="w-44 h-8 rounded-none"
                     value={reportDate}
-                    onChange={(e) =>
-                      setReportDate(e.target.value)
-                    }
+                    onChange={(e) => {
+                    const d = e.target.value
+                    setReportDate(d)
+                    setSafetyData(p => ({ ...p, Date: d }))
+                          }}
                   />
                 </div>
 
@@ -1376,9 +1657,49 @@ const renderTabContent = () => {
 
   return (
     <>
+        {loading && (
+                <div className="fixed top-0 left-0 w-full h-1 bg-transparent z-50">
+                    <div
+                    className="h-full bg-gradient-to-r from-indigo-500 to-sky-500 transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                    />
+                </div>
+                )}
     <div className="space-y-6">
 
-      <h1 className="text-3xl font-bold">Fill Data Report</h1>
+      
+            <div className="flex justify-between items-center mb-8 bg-white/30 backdrop-blur-xl border border-white/40 rounded-3xl px-6 py-4 shadow-lg">
+  
+  <div>
+                <h1 className="text-3xl font-bold tracking-tight">
+                Fill Data Report
+                </h1>
+                <p className="text-sm text-gray-600">
+                Generate and submit monthly report
+                </p>
+            </div>
+
+            <div className="flex gap-3">
+                <Button
+                variant="outline"
+                className="rounded-xl"
+                onClick={handleBack}
+                >
+                Back
+                </Button>
+
+                <Button
+                variant="destructive"
+                className="rounded-xl"
+                onClick={handleLogout}
+                >
+                Logout
+                </Button>
+            </div>
+            </div>
+
+            
+
 
       <div className="flex items-end gap-4">
         <div>
@@ -1388,38 +1709,89 @@ const renderTabContent = () => {
             onChange={(e)=>setFromdate(e.target.value)}/>
         </div>
 
-        <Button onClick={handleGetData} disabled={loading}>
+        <Button onClick={handleGetData} disabled={loading || !isClientReady}>
           {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
           Get Data
         </Button>
+        <div className="flex items-center gap-6 mt-4">
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="online"
+              checked={saveOptions.online}
+              onChange={(e) =>
+                setSaveOptions(prev => ({
+                  ...prev,
+                  online: e.target.checked
+                }))
+              }
+            />
+            <label htmlFor="online" className="font-medium">
+              Online
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="offline"
+              checked={saveOptions.offline}
+              onChange={(e) =>
+                setSaveOptions(prev => ({
+                  ...prev,
+                  offline: e.target.checked
+                }))
+              }
+            />
+            <label htmlFor="offline" className="font-medium">
+              Offline (Local Server Only)
+            </label>
+          </div>
+
+        </div>
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground">{progress}</p>}
+      
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-3 flex-wrap mb-6">
         {["branch","emp","member","deposit","loan","jewel","npa","profit","safety"]
-          .map(tab=>(
-            <Button key={tab}
-              variant={activeTab===tab?"default":"outline"}
-              size="sm"
-              onClick={()=>setActiveTab(tab)}>
-              {tab.toUpperCase()}
+            .map((tab) => (
+            <Button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`rounded-full px-6 transition-all duration-300 font-medium
+                ${activeTab === tab
+                    ? "bg-white text-black shadow-lg scale-105"
+                    : "bg-white/30 text-gray-800 hover:bg-white/50"}
+                `}
+            >
+                {tab.toUpperCase()}
             </Button>
-          ))}
-      </div>
+            ))}
+        </div>
 
-      <Card>
+
+
+
+      <Card className="bg-white/30 backdrop-blur-xl border border-white/40 shadow-xl rounded-3xl">
+
         <CardHeader>
           <CardTitle>{activeTab.toUpperCase()}</CardTitle>
         </CardHeader>
         <CardContent>
-          {renderTabContent()}
+           <div key={activeTab} className="animate-fade">
+                {renderTabContent()}
+                </div>
         </CardContent>
       </Card>
+     
      <Button
             className="w-full"
-            disabled={loading}
+            disabled={loading || !isClientReady}
             onClick={() => {
+              syncMetaIntoTabs() 
               setPreviewStep(0)
               setShowPreview(true)
             }}
@@ -1527,15 +1899,34 @@ const renderTabContent = () => {
                       Next
                     </Button>
                   ) : (
-                    <Button onClick={handlePreviewOk}>
-                      OK & Submit
-                    </Button>
+                    <Button onClick={handlePreviewOk} disabled={submitting}>
+                        OK & Submit
+                        </Button>
+
                   )}
                 </div>
 
               </div>
             </div>
           )}
+          {submitting && (
+            <div className="fixed inset-0 z-[999] bg-white/80 backdrop-blur-md 
+                            flex flex-col items-center justify-center">
+                <Loader2 className="animate-spin h-12 w-12 text-indigo-600 mb-4" />
+                <p className="text-lg font-medium text-gray-700">
+                Submitting report, please wait...
+                </p>
+            </div>
+            )}
+            {loading && (
+                <div className="fixed inset-0 z-[999] bg-white/80 backdrop-blur-md 
+                                flex flex-col items-center justify-center">
+                    <Loader2 className="animate-spin h-12 w-12 text-indigo-600 mb-4" />
+                    <p className="text-lg font-medium text-gray-700">
+                    {progress || "Loading data, please wait..."}
+                    </p>
+                </div>
+                )}
   </>
   )
 }

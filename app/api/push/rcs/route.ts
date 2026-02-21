@@ -6,6 +6,8 @@ import https from "https"
 /* ================= CONFIG ================= */
 
 const DRY_RUN = process.env.RCS_DRY_RUN === "true"
+const BATCH_SIZE = 10
+const REQUEST_TIMEOUT = 15000
 
 const DEPOSIT_LOAN_URL =
   "https://dashboard.kooturavu.tn.gov.in/v1/api/uccs/deposit_loan/upsert"
@@ -13,24 +15,9 @@ const DEPOSIT_LOAN_URL =
 const JEWEL_URL =
   "https://dashboard.kooturavu.tn.gov.in/v1/api/uccs/jwel/upsert"
 
-const BATCH_SIZE = 10
-const REQUEST_TIMEOUT = 15000
-
-/* ================= KEEP ALIVE AGENT ================= */
-
-const httpsAgent = new https.Agent({
-  keepAlive: true,
-  maxSockets: 20,
-  maxFreeSockets: 10,
-  timeout: 60000,
-})
-
 /* ================= SAFE FETCH ================= */
 
 async function safeFetch(url: string, payload: any) {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
-
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -39,87 +26,61 @@ async function safeFetch(url: string, payload: any) {
         "x-api-key": process.env.RCS_API_KEY!,
       },
       body: JSON.stringify(payload),
-      signal: controller.signal,
     })
 
     const text = await res.text()
-    let data
-    try { data = JSON.parse(text) } catch { data = text }
-
-    return { ok: res.ok, status: res.status, data }
-  } catch (error: any) {
-    return {
-      ok: false,
-      status: 500,
-      data: { error: error.message || "Request failed" },
-    }
-  } finally {
-    clearTimeout(timeout)
+    try { return JSON.parse(text) } catch { return text }
+  } catch (err: any) {
+    return { error: err.message }
   }
 }
 
 /* ================= API ================= */
 
 export async function POST(req: Request) {
-  /* ✅ Collect actual RCS responses */
-  const depositLoanResponses: any[] = []
-  const jewelResponses: any[] = []
+  const apiKey = req.headers.get("x-api-key")
+  if (apiKey !== process.env.PUSH_API_KEY) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
 
-  try {
-    /* ---------- AUTH ---------- */
-    const apiKey = req.headers.get("x-api-key")
-    if (apiKey !== process.env.PUSH_API_KEY) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+  const { clientNames, fromDate } = await req.json()
+  if (!Array.isArray(clientNames) || !fromDate) {
+    return NextResponse.json({ error: "clientNames[] & fromDate required" }, { status: 400 })
+  }
 
-    /* ---------- INPUT ---------- */
-    const { clientName, fromDate } = await req.json()
+  const results: any[] = []
 
-    if (!clientName || !fromDate) {
-      return NextResponse.json(
-        { error: "clientName and fromDate required" },
-        { status: 400 }
-      )
-    }
+  for (const clientName of clientNames) {
+    try {
+      const docId = `${clientName}_${fromDate}`
+      const snap = await adminDb.collection("final_reports").doc(docId).get()
 
-    /* ---------- FETCH FIRESTORE ---------- */
-    const docId = `${clientName}_${fromDate}`
-    const snap = await adminDb
-      .collection("final_reports")
-      .doc(docId)
-      .get()
+      if (!snap.exists) {
+        results.push({ clientName, error: "Report not found" })
+        continue
+      }
 
-    if (!snap.exists) {
-      return NextResponse.json(
-        { error: "Report not found" },
-        { status: 404 }
-      )
-    }
+      const report = snap.data()!
+      const depositLoanResponses: any[] = []
+      const jewelResponses: any[] = []
 
-    const report = snap.data()!
+      const combined = [
+        ...(report.member || []),
+        ...(report.deposit || []),
+        ...(report.loan || []),
+      ]
 
-    /* =====================================================
-       MEMBER + DEPOSIT + LOAN
-    ===================================================== */
+      for (let i = 0; i < combined.length; i += BATCH_SIZE) {
+        const batch = combined.slice(i, i + BATCH_SIZE)
 
-    const combinedRows = [
-      ...(report.member || []),
-      ...(report.deposit || []),
-      ...(report.loan || []),
-    ]
-
-    for (let i = 0; i < combinedRows.length; i += BATCH_SIZE) {
-      const batch = combinedRows.slice(i, i + BATCH_SIZE)
-
-      await Promise.all(
-        batch.map(async (row: any) => {
+        await Promise.all(batch.map(async row => {
           const payload = {
-            sds_code: row.sds_code || "",
-            date: row.date || "",
-            schm_code: row.schm_code || "",
-            branch_name: row.branch_name || "",
-            modules: row.modules || "",
-            scheme_description: row.scheme_description || "",
+            sds_code: row.sds_code,
+            date: row.date,
+            schm_code: row.schm_code,
+            branch_name: row.branch_name,
+            modules: row.modules,
+            scheme_description: row.scheme_description,
             upto_month_count: Number(row.upto_month_count || 0),
             upto_month_balance: Number(row.upto_month_balance || 0),
             receipt_count: Number(row.receipt_count || 0),
@@ -130,95 +91,70 @@ export async function POST(req: Request) {
             close_amt: Number(row.close_amt || 0),
           }
 
-          let responseData: any = { dryRun: true }
-          let status: "SUCCESS" | "FAILED" | "DRY_RUN" = "DRY_RUN"
+          const res = DRY_RUN
+            ? { dryRun: true, payload }
+            : await safeFetch(DEPOSIT_LOAN_URL, payload)
 
-          if (!DRY_RUN) {
-            const result = await safeFetch(DEPOSIT_LOAN_URL, payload)
-            responseData = result.data
-            status = responseData?.success ? "SUCCESS" : "FAILED"
-          }
-
-          /* ✅ store actual RCS response */
-          depositLoanResponses.push(responseData)
+          depositLoanResponses.push(res)
 
           await logPushStatus({
             source: "FIREBASE",
             clientName,
             fromDate,
             module: "DEPOSIT/LOAN/MEMBER",
-            response: responseData,
-            status: DRY_RUN ? "DRY_RUN" : status,
+            response: res,
+            status: DRY_RUN ? "DRY_RUN" : res?.success ? "SUCCESS" : "FAILED",
           })
-        })
-      )
-    }
+        }))
+      }
 
-    /* =====================================================
-       JEWEL
-    ===================================================== */
+      for (let i = 0; i < (report.jewel || []).length; i += BATCH_SIZE) {
+        const batch = report.jewel.slice(i, i + BATCH_SIZE)
 
-    const jewelRows = report.jewel || []
-
-    for (let i = 0; i < jewelRows.length; i += BATCH_SIZE) {
-      const batch = jewelRows.slice(i, i + BATCH_SIZE)
-
-      await Promise.all(
-        batch.map(async (row: any) => {
+        await Promise.all(batch.map(async (row: { sds_code: any; date: any; branch_name: any; no_of_loans: any; gross_weight_grams: any; net_weight_grams: any; market_value_crores: any; net_market_value_crores: any }) => {
           const payload = {
-            sds_code: row.sds_code || "",
-            date: row.date || "",
-            branch_name: row.branch_name || "",
+            sds_code: row.sds_code,
+            date: row.date,
+            branch_name: row.branch_name,
             no_of_loans: Number(row.no_of_loans || 0),
             gross_weight_grams: Number(row.gross_weight_grams || 0),
             net_weight_grams: Number(row.net_weight_grams || 0),
             market_value_crores: Number(row.market_value_crores || 0),
-            net_market_value_crores: Number(
-              row.net_market_value_crores || 0
-            ),
+            net_market_value_crores: Number(row.net_market_value_crores || 0),
           }
 
-          let responseData: any = { dryRun: true }
-          let status: "SUCCESS" | "FAILED" | "DRY_RUN" = "DRY_RUN"
+          const res = DRY_RUN
+            ? { dryRun: true, payload }
+            : await safeFetch(JEWEL_URL, payload)
 
-          if (!DRY_RUN) {
-            const result = await safeFetch(JEWEL_URL, payload)
-            responseData = result.data
-            status = responseData?.success ? "SUCCESS" : "FAILED"
-          }
-
-          /* ✅ store actual RCS response */
-          jewelResponses.push(responseData)
+          jewelResponses.push(res)
 
           await logPushStatus({
             source: "FIREBASE",
             clientName,
             fromDate,
             module: "JEWEL",
-            response: responseData,
-            status: DRY_RUN ? "DRY_RUN" : status,
+            response: res,
+            status: DRY_RUN ? "DRY_RUN" : res?.success ? "SUCCESS" : "FAILED",
           })
-        })
-      )
+        }))
+      }
+
+      results.push({
+        clientName,
+        fromDate,
+        deposit_loan: depositLoanResponses,
+        jewel: jewelResponses,
+      })
+
+    } catch (err: any) {
+      results.push({ clientName, error: err.message })
     }
-
-    /* =====================================================
-       FINAL RESPONSE (ACTUAL CLIENT RESPONSES)
-    ===================================================== */
-    return NextResponse.json({
-      source: "RCS_DASHBOARD",
-      mode: DRY_RUN ? "DRY_RUN" : "LIVE",
-      clientName,
-      fromDate,
-      deposit_loan: depositLoanResponses,
-      jewel: jewelResponses,
-    })
-
-  } catch (error) {
-    console.error("Push Error:", error)
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    )
   }
+
+  return NextResponse.json({
+    source: "RCS_DASHBOARD",
+    mode: DRY_RUN ? "DRY_RUN" : "LIVE",
+    results,
+  })
 }

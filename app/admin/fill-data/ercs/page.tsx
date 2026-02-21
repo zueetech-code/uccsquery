@@ -212,6 +212,10 @@ const [npaData, setNpaData] = useState<NPAData>({
   router.back() // go to previous page
   // OR router.push("/dashboard") if you want fixed route
 }
+const deriveColumnOrder = (rows: any[]) => {
+  if (!rows || rows.length === 0) return []
+  return Object.keys(rows[0])
+}
 
 const handleLogout = async () => {
   try {
@@ -702,6 +706,16 @@ const handleLogout = async () => {
 
   setLoading(false)
 }
+
+const formatDateOnly = (value: any) => {
+  if (!value) return ""
+  if (typeof value === "string" && value.includes("T")) {
+    return value.split("T")[0] // YYYY-MM-DD
+  }
+  return value
+}
+
+
 const handleGetDataOffline = async (): Promise<boolean> => {
   if (!clientName || !Fromdate) {
     alert("Client Name or From Date not ready")
@@ -733,22 +747,54 @@ const handleGetDataOffline = async (): Promise<boolean> => {
     }
 
     // 🔥 Populate state
-    setFetchedData({
-      branch: data.branch || [],
-      member: data.member || [],
-      deposit: data.deposit || [],
-      loan: data.loan || [],
-      jewel: data.jewel || []
-    })
+    // 🔥 Populate table data
+const normalizeRows = (rows: any[]) =>
+  rows.map(row => {
+    const cleaned: any = {}
+    for (const key in row) {
+      cleaned[key] =
+        key.toLowerCase().includes("date") || key.toLowerCase().includes("created_at") || key.toLowerCase().includes("modified_at")
+          ? formatDateOnly(row[key])
+          : row[key]
+    }
+    return cleaned
+  })
+  const normalizeSafety = (raw: any) => ({
+  SDSCode: raw.sds_code ?? raw.SDSCode ?? "",
+  Date: raw.date ?? raw.Date ?? "",
+  SafetyLocker: raw.safety_locker ?? raw.SafetyLocker ?? "",
+  DefenderDoor: raw.defender_door ?? raw.DefenderDoor ?? "",
+  BurglaryAlarm: raw.burglary_alarm ?? raw.BurglaryAlarm ?? "",
+  CCTV: raw.cctv ?? raw.CCTV ?? "",
+  SMSAlert: raw.sms_alert ?? raw.SMSAlert ?? "",
+})
 
-    setNpaData(data.npa || npaData)
-    setProfitData(data.profit || profitData)
-    setSafetyData(data.safety || safetyData)
-    setEmpData(data.emp || empdata)
+setFetchedData({
+  branch: normalizeRows(data.branch || []),
+  member: normalizeRows(data.member || []),
+  deposit: normalizeRows(data.deposit || []),
+  loan: normalizeRows(data.loan || []),
+  jewel: normalizeRows(data.jewel || [])
+})
 
-    setReportDate(data.fromDate || Fromdate)
-    setSdsCode(data.npa?.SDSCode || "")
+// 🔥 Generate column orders from local DB rows
+setColumnOrders({
+  branch: deriveColumnOrder(data.branch),
+  member: deriveColumnOrder(data.member),
+  deposit: deriveColumnOrder(data.deposit),
+  loan: deriveColumnOrder(data.loan),
+  jewel: deriveColumnOrder(data.jewel),
+})
+const sds = data.sdsCode || ""
+const date = data.fromDate || Fromdate
 
+setSdsCode(sds)
+setReportDate(date)
+
+setNpaData(prev => ({ ...prev, ...data.npa, SDSCode: sds, Date: date }))
+setProfitData(prev => ({ ...prev, ...data.profit, SDSCode: sds, Date: date }))
+setSafetyData(normalizeSafety(data.safety))
+setEmpData(prev => ({ ...prev, ...data.emp, SDSCode: sds, Date: date }))
     setProgress("Loaded from offline server")
     return true
 
@@ -955,6 +1001,13 @@ const handleSubmitReport = async () => {
     alert("Error saving report")
   }
 }
+const SAFETY_KEYS = [
+  "SafetyLocker",
+  "DefenderDoor",
+  "BurglaryAlarm",
+  "CCTV",
+  "SMSAlert",
+] as const
 const resetall = () => {
   // 🔥 CLEAR EVERYTHING AFTER SAVE
       setFetchedData({
@@ -1581,35 +1634,33 @@ const renderTabContent = () => {
                   />
                 </div>
 
-                {Object.keys(safetyData)
-                  .filter(key => key !== "SDSCode" && key !== "Date")
-                  .map((key) => {
-                  const labelText = key.replace(/([A-Z])/g, ' $1').trim();
+                {SAFETY_KEYS.map((key) => {
+                    const labelText = key.replace(/([A-Z])/g, " $1").trim()
 
-                  return (
-                    <div className="flex items-center" key={key}>
-                      <Label className="w-64">{labelText}</Label>
+                    return (
+                      <div className="flex items-center" key={key}>
+                        <Label className="w-64">{labelText}</Label>
 
-                      <Select
-                        value={safetyData[key as keyof typeof safetyData] || ""}
-                        onValueChange={(val: string) =>
-                          setSafetyData({
-                            ...safetyData,
-                            [key]: val // Type-safe assignment
-                          })
-                        }
-                      >
-                        <SelectTrigger className="w-32 h-8 rounded-none">
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Yes">Yes</SelectItem>
-                          <SelectItem value="No">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                })}
+                        <Select
+                          value={safetyData[key] || ""}
+                          onValueChange={(val) =>
+                            setSafetyData({
+                              ...safetyData,
+                              [key]: val,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-32 h-8 rounded-none">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Yes">Yes</SelectItem>
+                            <SelectItem value="No">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )
+                  })}
 
               </div>
             );

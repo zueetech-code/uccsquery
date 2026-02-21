@@ -29,7 +29,7 @@ export default function DashboardPage() {
   /* ================= PUSH MODAL STATE ================= */
   const [showPushModal, setShowPushModal] = useState(false)
   const [clients, setClients] = useState<any[]>([])
-  const [selectedClientName, setSelectedClientName] = useState("")
+  const [selectedClientNames, setSelectedClientNames] = useState<string[]>([])
   const [pushDate, setPushDate] = useState("")
   const [pushing, setPushing] = useState(false)
   const [pushResult, setPushResult] = useState<any>(null)
@@ -152,7 +152,7 @@ export default function DashboardPage() {
 
   /* ================= PUSH HANDLER ================= */
  const handlePush = async () => {
-  if (!selectedClientName || !pushDate) {
+  if (selectedClientNames.length === 0 || !pushDate) {
     alert("Select client and date")
     return
   }
@@ -168,7 +168,7 @@ export default function DashboardPage() {
         "x-api-key": process.env.NEXT_PUBLIC_PUSH_API_KEY!,
       },
       body: JSON.stringify({
-        clientName: selectedClientName,
+        clientNames: selectedClientNames,
         fromDate: pushDate,
       }),
     })
@@ -213,7 +213,7 @@ export default function DashboardPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `rcs_push_${selectedClientName}_${pushDate}.json`
+    a.download = `rcs_push_${selectedClientNames.join("_")}_${pushDate}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -253,9 +253,16 @@ export default function DashboardPage() {
               <div>
                 <label className="text-sm font-medium">Client</label>
                <select
-                  className="w-full border rounded px-3 py-2"
-                  value={selectedClientName}
-                  onChange={(e) => setSelectedClientName(e.target.value)}
+                  multiple
+                  className="w-full border rounded px-3 py-2 h-40"
+                  value={selectedClientNames}
+                  onChange={(e) => {
+                    const values = Array.from(
+                      e.target.selectedOptions,
+                      (option) => option.value
+                    )
+                    setSelectedClientNames(values)
+                  }}
                 >
                   <option value="">Select client</option>
                   {clients.map((c) => (
@@ -285,7 +292,7 @@ export default function DashboardPage() {
                 </button>
 
                 <button
-                  disabled={pushing || !selectedClientName || !pushDate}
+                  disabled={pushing || selectedClientNames.length === 0 || !pushDate}
                   onClick={handlePush}
                   className="px-4 py-2 rounded bg-green-600 text-black disabled:opacity-50"
                 >

@@ -20,6 +20,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { auth } from "firebase-admin"
 
 type UserType = {
   id: string
@@ -120,12 +121,31 @@ export default function UsersPage() {
     try {
       const ref = doc(db, "users", user.id)
       await updateDoc(ref, { role: newRole })
+      
+     // Update Firebase Auth claims
+      // 2️⃣ Update Firebase Auth Custom Claims
+    const res = await fetch("/api/set-role", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        uid: user.id,
+        role: newRole,
+      }),
+    })
+
+    if (!res.ok) {
+      throw new Error("Failed to update auth claims")
+    }
+      
       alert(`User role updated to ${newRole}`)
       loadUsers()
     } catch (err) {
       alert("Failed to update user role")
     }
   }
+ 
 
   return (
     <div className="space-y-6">
@@ -193,21 +213,22 @@ export default function UsersPage() {
                 Role: {user.role} | {user.active ? "Active" : "Inactive"}
               </p>
               {/* Add ability to change role for users */}
-              <Select
-                value={user.role}
-                onValueChange={(newRole) => updateUserRole(user, newRole)}
-                className="w-32"
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="engineer">Engineer</SelectItem>
-                  <SelectItem value="ercs">ERCS</SelectItem>
-                  <SelectItem value="agent">Agent</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="w-32">
+                <Select
+                  value={user.role}
+                  onValueChange={(newRole) => updateUserRole(user, newRole)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="engineer">Engineer</SelectItem>
+                    <SelectItem value="ercs">ERCS</SelectItem>
+                    <SelectItem value="agent">Agent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex gap-2">
               <Button
