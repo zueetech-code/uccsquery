@@ -7,36 +7,37 @@ import { AdminHeader } from "@/components/admin-header"
 import { onAuthStateChanged } from "firebase/auth"
 import { auth } from "@/lib/firebase-client"
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const [loading, setLoading] = useState(true)
-  const [userEmail, setUserEmail] = useState<string>("")
+  const [userEmail, setUserEmail] = useState("")
+  const [userRole, setUserRole] = useState<string | null>(null)
 
+  /* ================= AUTH CHECK ================= */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log("[v0] Auth state changed:", user?.email)
-
       if (!user) {
-        console.log("[v0] No user, redirecting to login")
         window.location.href = "/login"
         return
       }
 
       try {
-        // Get token without forcing refresh
-        const idTokenResult = await user.getIdTokenResult()
-        console.log("[v0] Token claims:", idTokenResult.claims)
+        const token = await user.getIdTokenResult()
+        const role = token.claims.role as string
 
-        const userRole = idTokenResult.claims.role as string
-        if (userRole !== "admin" && userRole !== "engineer" && userRole !== "agent") {
-          console.log("[v0] User does not have admin, engineer, or agent role")
+        if (!["admin", "engineer", "agent", "ercs"].includes(role)) {
           window.location.href = "/login"
           return
         }
 
+        setUserRole(role)
         setUserEmail(user.email || "")
         setLoading(false)
-      } catch (error) {
-        console.error("[v0] Error getting token:", error)
+      } catch (err) {
+        console.error("Auth error", err)
         window.location.href = "/login"
       }
     })
@@ -44,22 +45,54 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => unsubscribe()
   }, [])
 
+  /* ================= LOADING OVERLAY ================= */
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-neutral-950">
+      <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-neutral-400">Verifying credentials...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4" />
+          <p className="text-neutral-300">Verifying credentials...</p>
         </div>
       </div>
     )
   }
 
+  const hasSidebar = userRole !== "ercs"
+  const hasHeader = userRole !== "ercs"
+
+  /* ================= LAYOUT ================= */
   return (
-    <div className="min-h-screen bg-neutral-950">
-      <AdminSidebar />
-      <AdminHeader userEmail={userEmail} />
-      <main className="ml-64 mt-16 p-6">{children}</main>
+    <div className="min-h-screen bg-background text-foreground flex">
+
+      {/* ===== SIDEBAR ===== */}
+      {hasSidebar && (
+        <div className="fixed inset-y-0 left-0 w-64 z-40">
+          <AdminSidebar />
+        </div>
+      )}
+
+      {/* ===== MAIN AREA ===== */}
+      <div
+        className={`flex-1 flex flex-col ${
+          hasSidebar ? "ml-64" : ""
+        }`}
+      >
+        {/* ===== HEADER ===== */}
+        {hasHeader && (
+          <div className="fixed top-0 right-0 left-0 z-30">
+            <AdminHeader userEmail={userEmail} />
+          </div>
+        )}
+
+        {/* ===== PAGE CONTENT (SCROLLABLE) ===== */}
+        <main
+          className={`flex-1 overflow-y-auto ${
+            hasHeader ? "mt-16" : ""
+          } p-6`}
+        >
+          {children}
+        </main>
+      </div>
     </div>
   )
 }

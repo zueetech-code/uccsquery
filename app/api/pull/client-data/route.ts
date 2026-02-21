@@ -2,67 +2,84 @@ import { NextResponse } from "next/server"
 import { adminDb } from "@/lib/firebase-admin"
 
 export async function POST(req: Request) {
+
+  /* ================= API KEY CHECK ================= */
   const apiKey = req.headers.get("x-api-key")
+
   if (apiKey !== process.env.PULL_API_KEY) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    )
   }
 
   const body = await req.json()
-  
-  // Support either "clientName" (single) or "clientNames" (array)
-  let clientNames: string[] = []
-  if (body.clientNames && Array.isArray(body.clientNames)) {
-    clientNames = body.clientNames
-  } else if (body.clientName && typeof body.clientName === "string") {
-    clientNames = [body.clientName]
+
+  /* ================= SUPPORT SINGLE OR MULTIPLE ================= */
+
+  let clientIds: string[] = []
+  const fromDate: string | undefined = body.fromDate
+
+  if (body.clientIds && Array.isArray(body.clientIds)) {
+    clientIds = body.clientIds
+  } else if (body.clientId && typeof body.clientId === "string") {
+    clientIds = [body.clientId]
   } else {
     return NextResponse.json(
-      { error: "clientName or clientNames array is required" },
+      { error: "clientId or clientIds array is required" },
       { status: 400 }
     )
   }
 
-  // Run queries in parallel for all clients
-  const promises = clientNames.map(async (clientName) => {
+  /* ================= PROCESS ALL CLIENTS IN PARALLEL ================= */
+
+  const promises = clientIds.map(async (clientId) => {
     try {
-      const clientSnap = await adminDb
-        .collection("clients")
-        .where("name", "==", clientName)
-        .limit(1)
-        .get()
 
-      if (clientSnap.empty) {
-        return { clientName, error: "Client not found" }
+      let docRef
+
+      // If fromDate provided → deterministic ID
+      if (fromDate) {
+        const docId = `${clientId}_${fromDate}`
+        docRef = adminDb.collection("final_reports").doc(docId)
+      } else {
+        // If no date → fetch latest report
+        const snap = await adminDb
+          .collection("final_reports")
+          .where("clientId", "==", clientId)
+          .orderBy("updatedAt", "desc")
+          .limit(1)
+          .get()
+
+        if (snap.empty) {
+          return { clientId, error: "No report found" }
+        }
+
+        return { clientId, data: snap.docs[0].data() }
       }
 
-      const agentUid = clientSnap.docs[0].data().agentUid
+      const docSnap = await docRef.get()
 
-      const resultSnap = await adminDb
-        .collection("temp_query_results")
-        .where("agentUid", "==", agentUid)
-        .orderBy("createdAt", "desc")
-        .limit(1)
-        .get()
-
-      if (resultSnap.empty) {
-        return { clientName, error: "No data found for client" }
+      if (!docSnap.exists) {
+        return { clientId, error: "Report not found" }
       }
 
-      const resultDoc = resultSnap.docs[0]
-      const rowsSnap = await resultDoc.ref.collection("rows").get()
-      const data = rowsSnap.docs.map(doc => doc.data())
+      return { clientId, data: docSnap.data() }
 
-      return { clientName, data }
     } catch (error) {
-      return { clientName, error: "Internal server error" }
+      console.error(error)
+      return { clientId, error: "Internal server error" }
     }
   })
 
   const resultsArray = await Promise.all(promises)
 
-  // Convert results array to object keyed by clientName
+  /* ================= FORMAT RESPONSE ================= */
+
   const results = resultsArray.reduce((acc, item) => {
-    acc[item.clientName] = item.error ? { error: item.error } : { data: item.data }
+    acc[item.clientId] = item.error
+      ? { error: item.error }
+      : { data: item.data }
     return acc
   }, {} as Record<string, any>)
 

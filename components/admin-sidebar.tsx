@@ -15,6 +15,12 @@ const adminMenuItems = [
     roles: ["admin"],
   },
   {
+    title: "Users",
+    href: "/admin/users",
+    icon: Users2,
+    roles: ["admin"],
+  },
+  {
     title: "Clients",
     href: "/admin/clients",
     icon: Users,
@@ -63,26 +69,31 @@ const engineerMenuItems = [
     title: "Dashboard",
     href: "/admin/dashboard",
     icon: LayoutDashboard,
+    roles: ["engineer"],
   },
   {
     title: "Clients",
     href: "/admin/clients",
     icon: Users,
+    roles: ["engineer"],
   },
   {
     title: "Agents",
     href: "/admin/agents",
     icon: UserCog,
+    roles: ["engineer"],
   },
   {
     title: "Execute Query",
     href: "/admin/execute-query",
     icon: Play,
+    roles: ["engineer"],
   },
   {
     title: "Logs",
     href: "/admin/logs",
     icon: ScrollText,
+    roles: ["engineer"],
   },
 ]
 
@@ -91,18 +102,50 @@ const agentMenuItems = [
     title: "Dashboard",
     href: "/admin/dashboard",
     icon: LayoutDashboard,
+    roles: ["agent"],
   },
   {
     title: "Generate Custom Report",
     href: "/admin/agent-reports",
     icon: FileText,
+    roles: ["agent"],
+  },
+   {
+    title: "Fill Data",
+    href: "/admin/fill-data",
+    icon: FileText,
+    roles: ["agent"],
   },
   {
     title: "Logs",
     href: "/admin/logs",
     icon: ScrollText,
+    roles: ["agent"],
   },
 ]
+
+const ercsMenuItems = [
+  {
+    title: "Dashboard",
+    href: "/admin/ercs/dashboard",
+    icon: LayoutDashboard,
+    roles: ["ercs"],
+  },
+   {
+    title: "Fill Data",
+    href: "/admin/fill-data/ercs",
+    icon: FileText,
+    roles: ["ercs"],
+  },
+  {
+    title: "Logs",
+    href: "/admin/logs",
+    icon: ScrollText,
+    roles: ["ercs"],
+  },
+]
+
+
 
 export function AdminSidebar() {
   const pathname = usePathname()
@@ -122,6 +165,7 @@ export function AdminSidebar() {
           menu = engineerMenuItems
         } else if (role === "agent") {
           menu = agentMenuItems
+        }else if (role === "ercs") {
         }
         setFilteredMenuItems(menu)
       }
@@ -135,6 +179,8 @@ export function AdminSidebar() {
         <h1 className="text-lg font-semibold text-sidebar-foreground">
           {userRole === "engineer"
             ? "Engineer Dashboard"
+            :userRole === "ercs"
+            ? "SLDB RCS Dashboard"
             : userRole === "agent"
               ? "Agent Dashboard"
               : "Admin Dashboard"}
