@@ -21,6 +21,7 @@ import {
   getDoc,
 } from "firebase/firestore"
 import { auth } from "@/lib/firebase-client"
+import { RCSClientsTable } from "@/components/rcs-client-table"
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
@@ -144,7 +145,7 @@ export default function ClientsPage() {
               </p>
             </div>
           ) : (
-            <ClientsTable clients={clients} onUpdate={fetchClients} />
+            <RCSClientsTable clients={clients} onUpdate={fetchClients} />
           )}
         </CardContent>
       </Card>

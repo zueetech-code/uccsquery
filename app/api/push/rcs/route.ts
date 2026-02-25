@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { adminDb } from "@/lib/firebase-admin"
 import { logPushStatus } from "@/lib/pushLogger"
 import https from "https"
-
+export const runtime = "nodejs"
 /* ================= CONFIG ================= */
 
 const DRY_RUN = process.env.RCS_DRY_RUN === "true"

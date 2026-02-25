@@ -126,7 +126,7 @@ export default function PushDataPage() {
         message: "Pushing data to RCS. Please wait...",
       });
 
-      const res = await fetch("/api/push/local", {
+      const res = await fetch("/api/push/rcs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -139,6 +139,7 @@ export default function PushDataPage() {
       });
 
       const data = await res.json();
+      console.log("Push result:", data);
       setPushResult(data);
 
       if (data.failed?.length > 0) {

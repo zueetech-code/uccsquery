@@ -146,7 +146,7 @@ export function RCSClientsTable({ clients, onUpdate }: RCSClientsTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Client Name</TableHead>
-              <TableHead>Status</TableHead>
+              {/* <TableHead>Status</TableHead> */}
               <TableHead>Last Seen</TableHead>
               <TableHead>Last Closed Date</TableHead>
               <TableHead>Last Closed Cash Balance</TableHead>
@@ -157,9 +157,9 @@ export function RCSClientsTable({ clients, onUpdate }: RCSClientsTableProps) {
               
               <TableRow key={client.id}>
                 <TableCell className="font-medium">{client.name}</TableCell>
-                <TableCell>
+                {/* <TableCell>
                   <Badge variant={client.status === "active" ? "default" : "secondary"}>{client.status}</Badge>
-                </TableCell>
+                </TableCell> */}
                 <TableCell>
                   {(() => {
                     const online = resolveHeartbeatStatus(client.lastSeen) === "online"
