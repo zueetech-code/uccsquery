@@ -161,7 +161,7 @@ export default function DashboardPage() {
     setPushing(true)
     setPushResult(null)
 
-    const res = await fetch("/api/push/rcs", {
+    const res = await fetch("/api/push/local", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

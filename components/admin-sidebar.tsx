@@ -57,6 +57,12 @@ const adminMenuItems = [
     roles: ["admin"],
   },
   {
+    title: "Push Data to RCS",  // New menu item
+    href: "/admin/push-data",   // New route for push data page
+    icon: Play,                 // Appropriate icon
+    roles: ["admin"],           // Only for admin role
+  },
+  {
     title: "Logs",
     href: "/admin/logs",
     icon: ScrollText,

@@ -20,6 +20,10 @@ const httpsAgent = new https.Agent({
   keepAlive: true,
   maxSockets: 20,
 })
+const toDateOnly = (value: string) => {
+  const d = new Date(value)
+  return d.toLocaleDateString("en-CA") // YYYY-MM-DD (IST safe)
+}
 
 /* ================= SAFE FETCH ================= */
 
@@ -60,9 +64,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { clientNames } = await req.json()
+  const { clientNames, fromDate } = await req.json()
   if (!Array.isArray(clientNames) || clientNames.length === 0) {
     return NextResponse.json({ error: "clientNames[] required" }, { status: 400 })
+  }
+  if (!fromDate) {
+    return NextResponse.json({ error: "fromDate required" }, { status: 400 })
   }
 
   const results: any[] = []
@@ -75,16 +82,21 @@ export async function POST(req: Request) {
         const last = await client.query(
           `
           SELECT sds_code, report_date
-          FROM report_insert_log
-          WHERE client_name=$1
-          ORDER BY created_at DESC
-          LIMIT 1
+        FROM report_insert_log
+        WHERE client_name = $1
+          AND report_date = $2
+        ORDER BY created_at DESC
+        LIMIT 1
           `,
-          [clientName]
+          [clientName,fromDate]
         )
 
-        if (!last.rowCount) {
-          results.push({ clientName, error: "No submission found" })
+         if (!last.rowCount) {
+          results.push({
+            clientName,
+            pushedDate: fromDate,
+            error: "No submission found for this date",
+          })
           continue
         }
 
@@ -114,7 +126,7 @@ export async function POST(req: Request) {
           await Promise.all(batch.map(async r => {
             const payload = {
               sds_code: r.sds_code,
-              date: r.date,
+              date: toDateOnly(r.date),
               schm_code: r.schm_code,
               branch_name: r.branch_name,
               modules: r.modules,
@@ -144,7 +156,7 @@ export async function POST(req: Request) {
           await Promise.all(batch.map(async r => {
             const payload = {
               sds_code: r.sds_code,
-              date: r.date,
+              date: toDateOnly(r.date),
               branch_name: r.branch_name,
               no_of_loans: Number(r.no_of_loans || 0),
               gross_weight_grams: Number(r.gross_weight_grams || 0),
@@ -163,7 +175,7 @@ export async function POST(req: Request) {
 
         results.push({
           clientName,
-          report_date,
+          report_date: toDateOnly(report_date),
           deposit_loan: depositLoanResponses,
           jewel: jewelResponses,
         })
