@@ -26,6 +26,7 @@ export default function PushDataPage() {
 
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [pushDate, setPushDate] = useState("");
+  const [pushLogs, setPushLogs] = useState<any[]>([]);
 
   const [view, setView] = useState<View>("NONE");
   const [viewHistory, setViewHistory] = useState<View[]>([]);
@@ -61,7 +62,8 @@ export default function PushDataPage() {
   useEffect(() => {
     loadClients();
     loadSubmitted();
-    console.log("Initial load: clients and last submitted data");
+    loadPushLogs();
+    //console.log("Initial load: clients and last submitted data");
   }, []);
 
   async function loadClients() {
@@ -72,10 +74,15 @@ export default function PushDataPage() {
   async function loadSubmitted() {
     const res = await fetch("/api/last-submitted-data");
     const data = await res.json();
-    console.log("Fetched last submitted data:", data);
+    //console.log("Fetched last submitted data:", data);
     setLastSubmittedData(Array.isArray(data) ? data : data ? [data] : []);
-    console.log("Last submitted data:", data);
+    //console.log("Last submitted data:", data);
   }
+  async function loadPushLogs() {
+  const res = await fetch("/api/push/logs");
+  const data = await res.json();
+  setPushLogs(Array.isArray(data) ? data : []);
+}
 
   /* ================= DATE ================= */
 
@@ -107,16 +114,16 @@ const submittedToday = lastSubmittedData
   const pendingToday = clients.filter(
     (c) => !submittedToday.includes(c)
   );
+  const todayPushLogs = pushLogs.filter(
+  (l) => l.report_date === formattedOneDayBefore
+);
 
-  const pushedClients =
-    pushResult?.success?.map((s: any) => s.client_name) || [];
-
-  const failedClients =
-    pushResult?.failed?.map((f: any) => f.client_name) || [];
+  const { pushed: pushedClients, failed: failedClients } =
+  deriveFinalClientStatus(todayPushLogs);
 
   const toBePushed = submittedToday.filter(
-    (c) => !pushedClients.includes(c)
-  );
+  (c) => !pushedClients.includes(c)
+);
 
   /* ================= COUNTS ================= */
 
@@ -129,6 +136,37 @@ const submittedToday = lastSubmittedData
   const toBePushedCount = toBePushed.length;
 
   /* ================= PUSH ================= */
+  function groupPushLogsByClient(logs: any[]) {
+  const map = new Map<string, any[]>();
+
+  logs.forEach((log) => {
+    if (!map.has(log.client_name)) {
+      map.set(log.client_name, []);
+    }
+    map.get(log.client_name)!.push(log);
+  });
+
+  return map;
+}
+function deriveFinalClientStatus(logs: any[]) {
+  const grouped = groupPushLogsByClient(logs);
+
+  const pushed: string[] = [];
+  const failed: string[] = [];
+
+  grouped.forEach((entries, client) => {
+    const hasFailed = entries.some(e => e.status === "FAILED");
+    const hasSuccess = entries.some(e => e.status === "SUCCESS");
+
+    if (hasFailed) {
+      failed.push(client);
+    } else if (hasSuccess) {
+      pushed.push(client);
+    }
+  });
+
+  return { pushed, failed };
+}
 
   async function handlePush() {
     if (selectedClients.length === 0) {
@@ -176,6 +214,7 @@ const submittedToday = lastSubmittedData
       }
 
       downloadJSON(data, pushDate);
+      await loadPushLogs();
       loadSubmitted();
     } catch {
       setAlert({

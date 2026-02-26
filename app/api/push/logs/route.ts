@@ -5,8 +5,16 @@ export async function GET() {
   const client = await pool.connect();
   try {
     const result = await client.query(`
-      SELECT * FROM push_logs ORDER BY created_at DESC LIMIT 10;
+      SELECT
+  client_name,
+  from_date::date::text AS report_date,   -- 🔥 FIX
+  module,
+  status,
+  created_at
+FROM push_logs
+ORDER BY created_at DESC;
     `);
+    console.log("Push logs query result:", result.rows);
     return NextResponse.json(result.rows);
   } catch (error) {
     console.error("Error fetching push logs:", error);
