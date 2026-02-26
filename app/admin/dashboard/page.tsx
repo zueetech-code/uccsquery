@@ -221,23 +221,27 @@ export default function DashboardPage() {
   /* ================= RENDER ================= */
   return (
     <>
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+      <div className="space-y-8">
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground mt-2">Welcome to your admin panel</p>
+          </div>
+          {(role === "admin" || role === "engineer" || role === "ercs") && (
+            <button
+              onClick={() => setShowPushModal(true)}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors shadow-lg"
+            >
+              Push to RCS
+            </button>
+          )}
+        </div>
 
-        {(role === "admin" || role === "engineer" || role === "ercs") && (
-          <button
-            onClick={() => setShowPushModal(true)}
-            className="px-4 py-2 rounded-lg bg-indigo-600 text-white"
-          >
-            Push to RCS
-          </button>
-        )}
-
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard title="Clients" value={stats.clients} icon={<Users />} loading={loading} />
-          <StatCard title="Agents" value={stats.agents} icon={<UserCog />} loading={loading} />
-          <StatCard title="Configs" value={stats.configs} icon={<Database />} loading={loading} />
-          <StatCard title="Queries" value={stats.queries} icon={<Activity />} loading={loading} />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard title="Clients" value={stats.clients} icon={<Users className="h-5 w-5" />} loading={loading} />
+          <StatCard title="Agents" value={stats.agents} icon={<UserCog className="h-5 w-5" />} loading={loading} />
+          <StatCard title="Configs" value={stats.configs} icon={<Database className="h-5 w-5" />} loading={loading} />
+          <StatCard title="Queries" value={stats.queries} icon={<Activity className="h-5 w-5" />} loading={loading} />
         </div>
       </div>
 
@@ -336,13 +340,14 @@ function StatCard({
   loading: boolean
 }) {
   return (
-    <Card>
-      <CardHeader className="flex justify-between">
-        <CardTitle className="text-sm">{title}</CardTitle>
-        {icon}
+    <Card className="border-border/50 bg-card/50 backdrop-blur-sm hover:bg-card/70 transition-all duration-300 hover:border-primary/30">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <div className="text-primary/80 opacity-80">{icon}</div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{loading ? "…" : value}</div>
+        <div className="text-3xl font-bold tracking-tight">{loading ? "…" : value}</div>
+        <p className="text-xs text-muted-foreground mt-1.5">Active items</p>
       </CardContent>
     </Card>
   )

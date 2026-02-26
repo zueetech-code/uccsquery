@@ -52,30 +52,31 @@ export function AdminHeader({ userEmail }: AdminHeaderProps) {
     .slice(0, 2)
 
   return (
-    <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-border bg-background">
-      <div className="flex h-full items-center justify-end px-6">
+    <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-white/20 bg-white/85 backdrop-blur-lg">
+      <div className="flex h-full items-center justify-between px-6">
+        <div className="flex-1" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-              <Avatar className="h-9 w-9">
-                <AvatarFallback className="bg-primary text-primary-foreground">{initials}</AvatarFallback>
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full hover:bg-secondary transition-colors">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">{initials}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{userRole}</p>
-                <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+              <div className="flex flex-col space-y-1.5">
+                <p className="text-sm font-semibold leading-none capitalize">{userRole}</p>
+                <p className="text-xs leading-none text-muted-foreground truncate">{userEmail}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer">
               <User className="mr-2 h-4 w-4" />
               <span>Profile</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
             </DropdownMenuItem>
