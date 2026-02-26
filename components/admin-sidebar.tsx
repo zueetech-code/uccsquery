@@ -180,8 +180,8 @@ export function AdminSidebar() {
   }, [])
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar/95 backdrop-blur-sm">
-      <div className="flex h-16 items-center border-b border-sidebar-border px-6">
+    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-white/20 bg-white/85 backdrop-blur-lg">
+      <div className="flex h-16 items-center border-b border-white/20 px-6">
         <h1 className="text-sm font-bold uppercase tracking-wide text-sidebar-primary">
           {userRole === "engineer"
             ? "Engineer"
@@ -203,8 +203,8 @@ export function AdminSidebar() {
               className={cn(
                 "flex items-center gap-3 rounded-[0.65rem] px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-sidebar-accent/90 text-sidebar-accent-foreground shadow-md"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
+                  ? "bg-white/40 text-sidebar-primary shadow-md border border-white/40"
+                  : "text-sidebar-foreground/70 hover:bg-white/20 hover:text-sidebar-foreground",
               )}
             >
               <Icon className="h-4 w-4 flex-shrink-0" />

@@ -52,7 +52,7 @@ export function AdminHeader({ userEmail }: AdminHeaderProps) {
     .slice(0, 2)
 
   return (
-    <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-border bg-background/95 backdrop-blur-sm">
+    <header className="fixed left-64 right-0 top-0 z-30 h-16 border-b border-white/20 bg-white/85 backdrop-blur-lg">
       <div className="flex h-full items-center justify-between px-6">
         <div className="flex-1" />
         <DropdownMenu>
