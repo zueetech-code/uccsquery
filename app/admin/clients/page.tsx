@@ -2,7 +2,6 @@
 
 import { CreateClientDialog } from "@/components/create-client-dialog"
 import { ClientsTable } from "@/components/clients-table"
-import { ClientDashboard } from "@/components/client-dashboard"
 import {
   Card,
   CardContent,
@@ -10,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import type { Client } from "@/types"
 import {
   getFirestore,
@@ -23,11 +22,22 @@ import {
 } from "firebase/firestore"
 import { auth } from "@/lib/firebase-client"
 import { RCSClientsTable } from "@/components/rcs-client-table"
+import { resolveHeartbeatStatus } from "@/lib/heartbeat"
+import { Users, Activity } from "lucide-react"
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>("admin")
+  
+  // Calculate stats from clients
+  const stats = useMemo(() => {
+    const total = clients.length
+    const online = clients.filter(c => resolveHeartbeatStatus(c.lastSeen) === "online").length
+    const offline = total - online
+    
+    return { total, online, offline }
+  }, [clients])
   
 
   useEffect(() => {
@@ -109,7 +119,7 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
@@ -141,7 +151,58 @@ export default function ClientsPage() {
         </Card>
       ) : (
         <>
-          <ClientDashboard clients={clients} onUpdate={fetchClients} />
+          {/* Stat Cards */}
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            <Card className="border-white/20 cursor-default">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Total Clients
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold tracking-tight text-foreground">{stats.total}</div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  All active clients
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-white/20 cursor-default">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Online Clients
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl font-bold tracking-tight text-foreground">{stats.online}</div>
+                  <span className="h-3 w-3 rounded-full bg-accent/80 animate-pulse" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Currently active
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-white/20 cursor-default">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Offline Clients
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl font-bold tracking-tight text-foreground">{stats.offline}</div>
+                  <span className="h-3 w-3 rounded-full bg-destructive/60" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Currently inactive
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Clients Table */}
           <Card>
             <CardHeader>
               <CardTitle>
