@@ -2,6 +2,7 @@
 
 import { CreateClientDialog } from "@/components/create-client-dialog"
 import { ClientsTable } from "@/components/clients-table"
+import { ClientDashboard } from "@/components/client-dashboard"
 import {
   Card,
   CardContent,
@@ -124,34 +125,40 @@ export default function ClientsPage() {
         )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {userRole === "engineer" ? "Assigned Clients" : "All Clients"}
-          </CardTitle>
-          <CardDescription>
-            {userRole === "engineer"
-              ? "Clients assigned to you"
-              : "All client accounts in the system"}
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent>
-          {loading ? (
-            <div className="flex h-[400px] items-center justify-center">
-              <p className="text-muted-foreground">Loading clients...</p>
-            </div>
-          ) : clients.length === 0 ? (
-            <div className="flex h-[400px] items-center justify-center">
-              <p className="text-muted-foreground">
-                No clients assigned
-              </p>
-            </div>
-          ) : (
-            <RCSClientsTable clients={clients} onUpdate={fetchClients} />
-          )}
-        </CardContent>
-      </Card>
+      {loading ? (
+        <Card>
+          <CardContent className="flex h-[400px] items-center justify-center">
+            <p className="text-muted-foreground">Loading clients...</p>
+          </CardContent>
+        </Card>
+      ) : clients.length === 0 ? (
+        <Card>
+          <CardContent className="flex h-[400px] items-center justify-center">
+            <p className="text-muted-foreground">
+              No clients assigned
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <ClientDashboard clients={clients} onUpdate={fetchClients} />
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {userRole === "engineer" ? "Assigned Clients" : "All Clients"}
+              </CardTitle>
+              <CardDescription>
+                {userRole === "engineer"
+                  ? "Clients assigned to you"
+                  : "All client accounts in the system"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RCSClientsTable clients={clients} onUpdate={fetchClients} />
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   )
 }
