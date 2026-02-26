@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     else if (latest) {
       const logRes = await client.query(
         `
-        SELECT sds_code, report_date
+        SELECT sds_code, report_date::text AS report_date
         FROM report_insert_log
         WHERE client_name = $1
         ORDER BY report_date DESC, created_at DESC
@@ -96,42 +96,42 @@ export async function POST(req: Request) {
       ),
 
       client.query(
-        `SELECT * FROM members WHERE sds_code = $1 AND date = $2`,
+        `SELECT *, date::text AS date FROM members WHERE sds_code = $1 AND date = $2`,
         [sds, date]
       ),
 
       client.query(
-        `SELECT * FROM deposits WHERE sds_code = $1 AND date = $2`,
+        `SELECT *, date::text AS date FROM deposits WHERE sds_code = $1 AND date = $2`,
         [sds, date]
       ),
 
       client.query(
-        `SELECT * FROM loans WHERE sds_code = $1 AND date = $2`,
+        `SELECT *, date::text AS date FROM loans WHERE sds_code = $1 AND date = $2`,
         [sds, date]
       ),
 
       client.query(
-        `SELECT * FROM jewel_details WHERE sds_code = $1 AND date = $2`,
+        `SELECT *, date::text AS date FROM jewel_details WHERE sds_code = $1 AND date = $2`,
         [sds, date]
       ),
 
       client.query(
-        `SELECT * FROM employee_details WHERE sds_code = $1 AND date = $2`,
+        `SELECT *, date::text AS date FROM employee_details WHERE sds_code = $1 AND date = $2`,
         [sds, date]
       ),
 
       client.query(
-        `SELECT * FROM npa_details WHERE sds_code = $1 AND date = $2`,
+        `SELECT *, date::text AS date FROM npa_details WHERE sds_code = $1 AND date = $2`,
         [sds, date]
       ),
 
       client.query(
-        `SELECT * FROM profit_details WHERE sds_code = $1 AND date = $2`,
+        `SELECT *, date::text AS date FROM profit_details WHERE sds_code = $1 AND date = $2`,
         [sds, date]
       ),
 
       client.query(
-        `SELECT * FROM safety_details WHERE sds_code = $1 AND date = $2`,
+        `SELECT *, date::text AS date FROM safety_details WHERE sds_code = $1 AND date = $2`,
         [sds, date]
       )
     ])

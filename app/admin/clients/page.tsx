@@ -1,7 +1,7 @@
 "use client"
 
 import { CreateClientDialog } from "@/components/create-client-dialog"
-import { ClientsTable } from "@/components/clients-table"
+import { RCSClientsTable } from "@/components/rcs-client-table"
 import {
   Card,
   CardContent,
@@ -21,38 +21,22 @@ import {
   getDoc,
 } from "firebase/firestore"
 import { auth } from "@/lib/firebase-client"
-import { RCSClientsTable } from "@/components/rcs-client-table"
 import { resolveHeartbeatStatus } from "@/lib/heartbeat"
-import { Users, Activity } from "lucide-react"
+import { subscribeLastSeen } from "@/lib/agent-heartbeat"
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
+  const [liveClients, setLiveClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>("admin")
   const [filter, setFilter] = useState<"all" | "online" | "offline">("all")
-  
-  // Calculate stats from clients
-  const stats = useMemo(() => {
-    const total = clients.length
-    const online = clients.filter(c => resolveHeartbeatStatus(c.lastSeen) === "online").length
-    const offline = total - online
-    
-    return { total, online, offline }
-  }, [clients])
 
-  // Filter clients based on selected card
-  const filteredClients = useMemo(() => {
-    if (filter === "all") return clients
-    if (filter === "online") return clients.filter(c => resolveHeartbeatStatus(c.lastSeen) === "online")
-    return clients.filter(c => resolveHeartbeatStatus(c.lastSeen) === "offline")
-  }, [clients, filter])
-  
+  /* ================= FETCH CLIENTS ================= */
 
   useEffect(() => {
     fetchClients()
     fetch("/api/clients/auto-execute").catch(console.error)
   }, [])
-  
 
   const fetchClients = async () => {
     try {
@@ -61,14 +45,13 @@ export default function ClientsPage() {
       const user = auth.currentUser
       if (!user) return
 
-      // 🔑 Get role from custom claims
       const idTokenResult = await user.getIdTokenResult()
       const role = (idTokenResult.claims.role as string) || "admin"
       setUserRole(role)
 
       const db = getFirestore()
 
-      /* ===================== ADMIN ===================== */
+      /* ================= ADMIN ================= */
       if (role === "admin") {
         const q = query(
           collection(db, "clients"),
@@ -76,24 +59,18 @@ export default function ClientsPage() {
         )
 
         const snapshot = await getDocs(q)
-
-        const clientsData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+        const data = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
         })) as Client[]
-        setClients(clientsData)
+
+        setClients(data)
         return
       }
 
-      /* ===================== ENGINEER ===================== */
-
-      // 1️⃣ Read engineer's OWN user document
-      const userDoc = await getDoc(
-        doc(db, "users", user.uid)
-      )
-
+      /* ================= ENGINEER ================= */
+      const userDoc = await getDoc(doc(db, "users", user.uid))
       if (!userDoc.exists()) {
-        console.error("Engineer user document not found")
         setClients([])
         return
       }
@@ -101,30 +78,74 @@ export default function ClientsPage() {
       const assignedClients: string[] =
         userDoc.data().assignedClients || []
 
-      console.log("[v0] Engineer assigned clients:", assignedClients)
-
-      // 2️⃣ Fetch ONLY assigned client documents
-      const clientDocs = await Promise.all(
-        assignedClients.map((clientId: string) =>
-          getDoc(doc(db, "clients", clientId))
-        )
+      const docs = await Promise.all(
+        assignedClients.map((id) => getDoc(doc(db, "clients", id)))
       )
 
-      const clientsData = clientDocs
+      const data = docs
         .filter((d) => d.exists())
-        .map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })) as Client[]
-      setClients(clientsData)
+        .map((d) => ({ id: d.id, ...d.data() })) as Client[]
 
-    } catch (error) {
-      console.error("[v0] Failed to fetch clients:", error)
+      setClients(data)
+    } catch (e) {
+      console.error(e)
       setClients([])
     } finally {
       setLoading(false)
     }
   }
+
+  /* ================= SYNC TO LIVE CLIENTS ================= */
+
+  useEffect(() => {
+    setLiveClients(clients)
+  }, [clients])
+
+  /* ================= HEARTBEAT SUBSCRIBE ================= */
+
+  useEffect(() => {
+    if (clients.length === 0) return
+
+    const unsubscribers = clients.map((client) =>
+      subscribeLastSeen(client.id, (lastSeen) => {
+        setLiveClients((prev) =>
+          prev.map((c) =>
+            c.id === client.id ? { ...c, lastSeen } : c
+          )
+        )
+      })
+    )
+
+    return () => {
+      unsubscribers.forEach((u) => u && u())
+    }
+  }, [clients])
+
+  /* ================= STATS ================= */
+
+  const stats = useMemo(() => {
+    const total = liveClients.length
+    const online = liveClients.filter(
+      (c) => resolveHeartbeatStatus(c.lastSeen) === "online"
+    ).length
+    const offline = total - online
+    return { total, online, offline }
+  }, [liveClients])
+
+  /* ================= FILTER ================= */
+
+  const filteredClients = useMemo(() => {
+    if (filter === "all") return liveClients
+    if (filter === "online")
+      return liveClients.filter(
+        (c) => resolveHeartbeatStatus(c.lastSeen) === "online"
+      )
+    return liveClients.filter(
+      (c) => resolveHeartbeatStatus(c.lastSeen) === "offline"
+    )
+  }, [liveClients, filter])
+
+  /* ================= UI ================= */
 
   return (
     <div className="space-y-8">
@@ -146,126 +167,54 @@ export default function ClientsPage() {
       {loading ? (
         <Card>
           <CardContent className="flex h-[400px] items-center justify-center">
-            <p className="text-muted-foreground">Loading clients...</p>
-          </CardContent>
-        </Card>
-      ) : clients.length === 0 ? (
-        <Card>
-          <CardContent className="flex h-[400px] items-center justify-center">
-            <p className="text-muted-foreground">
-              No clients assigned
-            </p>
+            Loading clients...
           </CardContent>
         </Card>
       ) : (
         <>
-          {/* Stat Cards */}
+          {/* ================= STAT CARDS ================= */}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <Card 
-              className={`border-white/20 cursor-pointer transition-all duration-300 ${
-                filter === "all"
-                  ? "border-primary/30 bg-white/95 ring-1 ring-primary/30 shadow-xl"
-                  : "hover:border-primary/20 hover:bg-white/90"
-              }`}
-              onClick={() => setFilter("all")}
-            >
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Total Clients
-                </CardTitle>
+            <Card onClick={() => setFilter("all")} className="cursor-pointer">
+              <CardHeader>
+                <CardTitle>Total Clients</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold tracking-tight text-foreground">{stats.total}</div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {filter === "all" ? "All clients" : "Click to view all"}
-                </p>
-              </CardContent>
+              <CardContent>{stats.total}</CardContent>
             </Card>
 
-            <Card 
-              className={`border-white/20 cursor-pointer transition-all duration-300 ${
-                filter === "online"
-                  ? "border-accent/30 bg-white/95 ring-1 ring-accent/30 shadow-xl"
-                  : "hover:border-accent/20 hover:bg-white/90"
-              }`}
-              onClick={() => setFilter("online")}
-            >
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Online Clients
-                </CardTitle>
+            <Card onClick={() => setFilter("online")} className="cursor-pointer">
+              <CardHeader>
+                <CardTitle>Online Clients</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl font-bold tracking-tight text-foreground">{stats.online}</div>
-                  <span className="h-3 w-3 rounded-full bg-accent/80 animate-pulse" />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {filter === "online" ? "Showing online" : "Click to view"}
-                </p>
-              </CardContent>
+              <CardContent>{stats.online}</CardContent>
             </Card>
 
-            <Card 
-              className={`border-white/20 cursor-pointer transition-all duration-300 ${
-                filter === "offline"
-                  ? "border-destructive/30 bg-white/95 ring-1 ring-destructive/30 shadow-xl"
-                  : "hover:border-destructive/20 hover:bg-white/90"
-              }`}
-              onClick={() => setFilter("offline")}
-            >
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Offline Clients
-                </CardTitle>
+            <Card onClick={() => setFilter("offline")} className="cursor-pointer">
+              <CardHeader>
+                <CardTitle>Offline Clients</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
-                  <div className="text-3xl font-bold tracking-tight text-foreground">{stats.offline}</div>
-                  <span className="h-3 w-3 rounded-full bg-destructive/60" />
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {filter === "offline" ? "Showing offline" : "Click to view"}
-                </p>
-              </CardContent>
+              <CardContent>{stats.offline}</CardContent>
             </Card>
           </div>
 
-          {/* Clients Table */}
+          {/* ================= TABLE ================= */}
           <Card>
             <CardHeader>
               <CardTitle>
                 {filter === "all"
-                  ? userRole === "engineer" ? "Assigned Clients" : "All Clients"
+                  ? "All Clients"
                   : filter === "online"
-                    ? "Online Clients"
-                    : "Offline Clients"}
+                  ? "Online Clients"
+                  : "Offline Clients"}
               </CardTitle>
               <CardDescription>
-                Showing {filteredClients.length} of {clients.length} clients
-                {filter !== "all" && (
-                  <button
-                    onClick={() => setFilter("all")}
-                    className="ml-3 text-primary hover:underline"
-                  >
-                    Clear filter
-                  </button>
-                )}
+                Showing {filteredClients.length} of {liveClients.length}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {filteredClients.length === 0 ? (
-                <div className="flex h-[250px] items-center justify-center rounded-lg border border-white/20 border-dashed bg-white/40">
-                  <div className="text-center">
-                    <h3 className="text-sm font-semibold text-foreground">No clients found</h3>
-                    <p className="mt-1.5 text-sm text-muted-foreground">
-                      No clients match the selected filter.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <RCSClientsTable clients={filteredClients} onUpdate={fetchClients} />
-              )}
+              <RCSClientsTable
+                clients={filteredClients}
+                onUpdate={fetchClients}
+              />
             </CardContent>
           </Card>
         </>

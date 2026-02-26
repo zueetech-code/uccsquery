@@ -709,13 +709,39 @@ const handleLogout = async () => {
 
 const formatDateOnly = (value: any) => {
   if (!value) return ""
-  if (typeof value === "string" && value.includes("T")) {
-    return value.split("T")[0] // YYYY-MM-DD
+
+  // ✅ Safe YYYY-MM-DD string → return as-is
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value
   }
-  return value
+
+  // ✅ ISO string → strip time (no Date parsing)
+  if (typeof value === "string" && value.includes("T")) {
+    return value.split("T")[0]
+  }
+
+  // ✅ Firestore Timestamp → LOCAL date (IST safe)
+  if (typeof value === "object" && value?.seconds) {
+    const d = new Date(value.seconds * 1000)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
+  }
+
+  return String(value)
 }
 
-
+const normalizeRowsDates = (rows: any[]) =>
+  rows.map(row => {
+    const out: any = {}
+    for (const k in row) {
+      out[k] = k.toLowerCase().includes("date")
+        ? formatDateOnly(row[k])
+        : row[k]
+    }
+    return out
+  })
 
 const forceDateAndSds = (date: string, sds: string) => {
   setReportDate(date)
