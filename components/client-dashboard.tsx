@@ -55,115 +55,119 @@ export function ClientDashboard({ clients }: ClientDashboardProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
         {/* Total Clients Card */}
         <Card
-          className={`cursor-pointer transition-colors ${
+          className={`cursor-pointer transition-all duration-300 border-border/40 ${
             filter === "all"
-              ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
-              : "hover:bg-muted"
+              ? "border-primary/40 bg-card ring-1 ring-primary/20 shadow-xl"
+              : "hover:border-primary/20 hover:bg-card/80"
           }`}
           onClick={() => handleCardClick("all")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Total Clients
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              {filter === "all" ? "Selected" : "Click to view"}
+            <div className="text-3xl font-bold tracking-tight">{stats.total}</div>
+            <p className="text-xs text-muted-foreground mt-2">
+              {filter === "all" ? "All clients" : "Click to view all"}
             </p>
           </CardContent>
         </Card>
 
         {/* Online Clients Card */}
         <Card
-          className={`cursor-pointer transition-colors ${
+          className={`cursor-pointer transition-all duration-300 border-border/40 ${
             filter === "online"
-              ? "border-green-500 bg-green-50 dark:bg-green-950"
-              : "hover:bg-muted"
+              ? "border-accent/40 bg-card ring-1 ring-accent/20 shadow-xl"
+              : "hover:border-accent/20 hover:bg-card/80"
           }`}
           onClick={() => handleCardClick("online")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Online Clients
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <div className="text-2xl font-bold">{stats.online}</div>
-              <span className="h-3 w-3 rounded-full bg-green-500" />
+            <div className="flex items-center gap-3">
+              <div className="text-3xl font-bold tracking-tight">{stats.online}</div>
+              <span className="h-3 w-3 rounded-full bg-accent/80 animate-pulse" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {filter === "online" ? "Selected" : "Click to view"}
+            <p className="text-xs text-muted-foreground mt-2">
+              {filter === "online" ? "Active now" : "Click to view"}
             </p>
           </CardContent>
         </Card>
 
         {/* Offline Clients Card */}
         <Card
-          className={`cursor-pointer transition-colors ${
+          className={`cursor-pointer transition-all duration-300 border-border/40 ${
             filter === "offline"
-              ? "border-red-500 bg-red-50 dark:bg-red-950"
-              : "hover:bg-muted"
+              ? "border-destructive/40 bg-card ring-1 ring-destructive/20 shadow-xl"
+              : "hover:border-destructive/20 hover:bg-card/80"
           }`}
           onClick={() => handleCardClick("offline")}
         >
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Offline Clients
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <div className="text-2xl font-bold">{stats.offline}</div>
-              <span className="h-3 w-3 rounded-full bg-red-500" />
+            <div className="flex items-center gap-3">
+              <div className="text-3xl font-bold tracking-tight">{stats.offline}</div>
+              <span className="h-3 w-3 rounded-full bg-destructive/60" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {filter === "offline" ? "Selected" : "Click to view"}
+            <p className="text-xs text-muted-foreground mt-2">
+              {filter === "offline" ? "Inactive" : "Click to view"}
             </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filtered Client List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {filter === "all"
-              ? "All Clients"
-              : filter === "online"
-                ? "Online Clients"
-                : "Offline Clients"}
-          </CardTitle>
-          <CardDescription>
-            Showing {filteredClients.length} of {clients.length} clients
-          </CardDescription>
+      <Card className="border-border/40">
+        <CardHeader className="pb-4">
+          <div className="flex items-end justify-between">
+            <div>
+              <CardTitle className="text-xl">
+                {filter === "all"
+                  ? "All Clients"
+                  : filter === "online"
+                    ? "Online Clients"
+                    : "Offline Clients"}
+              </CardTitle>
+              <CardDescription className="mt-2">
+                Showing {filteredClients.length} of {clients.length} clients
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {filteredClients.length === 0 ? (
-            <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed">
+            <div className="flex h-[250px] items-center justify-center rounded-lg border border-border/50 border-dashed bg-secondary/20">
               <div className="text-center">
                 <h3 className="text-sm font-semibold">No clients found</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1.5 text-sm text-muted-foreground">
                   No clients match the selected filter.
                 </p>
               </div>
             </div>
           ) : (
-            <div className="rounded-lg border">
+            <div className="rounded-lg border border-border/50 overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Client Name</TableHead>
-                    <TableHead>Client ID</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Online Status</TableHead>
+                  <TableRow className="border-border/30 bg-secondary/40 hover:bg-secondary/40">
+                    <TableHead className="font-semibold">Client Name</TableHead>
+                    <TableHead className="font-semibold">Client ID</TableHead>
+                    <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="font-semibold">Connection</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -171,7 +175,7 @@ export function ClientDashboard({ clients }: ClientDashboardProps) {
                     const isOnline =
                       resolveHeartbeatStatus(client.lastSeen) === "online"
                     return (
-                      <TableRow key={client.id}>
+                      <TableRow key={client.id} className="border-border/30 hover:bg-secondary/30 transition-colors">
                         <TableCell className="font-medium">
                           {client.name}
                         </TableCell>
@@ -190,19 +194,19 @@ export function ClientDashboard({ clients }: ClientDashboardProps) {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2.5">
                             <span
                               className={`h-2.5 w-2.5 rounded-full ${
                                 isOnline
-                                  ? "bg-green-500"
-                                  : "bg-red-500"
+                                  ? "bg-accent"
+                                  : "bg-destructive/60"
                               }`}
                             />
                             <span
                               className={`text-sm font-medium ${
                                 isOnline
-                                  ? "text-green-600"
-                                  : "text-red-600"
+                                  ? "text-accent"
+                                  : "text-destructive/80"
                               }`}
                             >
                               {isOnline ? "Online" : "Offline"}

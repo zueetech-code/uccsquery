@@ -180,19 +180,19 @@ export function AdminSidebar() {
   }, [])
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar">
+    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-sidebar-border bg-sidebar/95 backdrop-blur-sm">
       <div className="flex h-16 items-center border-b border-sidebar-border px-6">
-        <h1 className="text-lg font-semibold text-sidebar-foreground">
+        <h1 className="text-sm font-bold uppercase tracking-wide text-sidebar-primary">
           {userRole === "engineer"
-            ? "Engineer Dashboard"
-            :userRole === "ercs"
-            ? "SLDB RCS Dashboard"
-            : userRole === "agent"
-              ? "Agent Dashboard"
-              : "Admin Dashboard"}
+            ? "Engineer"
+            : userRole === "ercs"
+              ? "SLDB RCS"
+              : userRole === "agent"
+                ? "Agent"
+                : "Admin"}
         </h1>
       </div>
-      <nav className="space-y-1 p-4">
+      <nav className="space-y-2 p-4">
         {filteredMenuItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href
@@ -201,13 +201,13 @@ export function AdminSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-[0.65rem] px-3 py-2.5 text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                  ? "bg-sidebar-accent/90 text-sidebar-accent-foreground shadow-md"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-4 w-4 flex-shrink-0" />
               <span>{item.title}</span>
             </Link>
           )
