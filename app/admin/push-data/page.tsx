@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase-client";
 import { collection, getDocs } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { report } from "process";
 
 /* ================= TYPES ================= */
 
@@ -60,6 +61,7 @@ export default function PushDataPage() {
   useEffect(() => {
     loadClients();
     loadSubmitted();
+    console.log("Initial load: clients and last submitted data");
   }, []);
 
   async function loadClients() {
@@ -70,19 +72,38 @@ export default function PushDataPage() {
   async function loadSubmitted() {
     const res = await fetch("/api/last-submitted-data");
     const data = await res.json();
+    console.log("Fetched last submitted data:", data);
     setLastSubmittedData(Array.isArray(data) ? data : data ? [data] : []);
+    console.log("Last submitted data:", data);
   }
 
   /* ================= DATE ================= */
 
-  const today = new Date().toISOString().split("T")[0];
+
 
   /* ================= LIST DERIVATION ================= */
 
-  const submittedToday = lastSubmittedData
-    //.filter((d) => d.report_date?.startsWith(today))
-    .map((d) => d.client_name);
+ const todayLocal = new Date().toISOString().split("T")[0];
+ function formatDate(date: Date) {
+  return (
+    date.getFullYear() +
+    "-" +
+    String(date.getMonth() + 1).padStart(2, "0") +
+    "-" +
+    String(date.getDate()).padStart(2, "0")
+  );
+}
 
+const today = new Date();
+const oneDayBefore = new Date(today);
+oneDayBefore.setDate(today.getDate() - 1);
+
+const formattedOneDayBefore = formatDate(oneDayBefore);
+//console.log(formattedOneDayBefore); // e.g. "2026-02-25"
+
+const submittedToday = lastSubmittedData
+  .filter((d) => d.report_date === formattedOneDayBefore)
+  .map((d) => d.client_name);
   const pendingToday = clients.filter(
     (c) => !submittedToday.includes(c)
   );
@@ -261,7 +282,7 @@ export default function PushDataPage() {
           <Card
             onClick={() => {
               setSelectedClients(toBePushed);
-              setPushDate(today);
+             setPushDate(formattedOneDayBefore);
               goToView("TO_BE_PUSHED");
             }}
             className="cursor-pointer hover:bg-yellow-50"

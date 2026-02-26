@@ -26,10 +26,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getFirestore, doc, updateDoc, deleteDoc } from "firebase/firestore"
+import { getFirestore, doc, updateDoc, deleteDoc, query, Timestamp, where, orderBy, limit } from "firebase/firestore"
 import { AssignAgentDialog } from "./assign-agent-dialog"
 import { EditClientDialog } from "./edit-client-dialog"
 import { subscribeLastSeen } from "@/lib/agent-heartbeat"
+import { collection, getDocs } from "firebase/firestore"
+import { db } from "@/lib/firebase-client"
 
 
 interface RCSClientsTableProps {
@@ -45,6 +47,9 @@ export function RCSClientsTable({ clients, onUpdate }: RCSClientsTableProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [liveClients, setLiveClients] = useState<Client[]>(clients)
+  const [closingInfo, setClosingInfo] = useState<
+  Record<string, { date: string; balance: number | string }>
+>({})
 
 
   const handleDelete = async () => {
@@ -72,6 +77,21 @@ export function RCSClientsTable({ clients, onUpdate }: RCSClientsTableProps) {
     setDeleteDialogOpen(false)
     setSelectedClient(null)
   }
+  function formatDate(value: any): string {
+  if (!value) return "—"
+
+  // Firestore Timestamp
+  if (typeof value === "object" && "seconds" in value) {
+    const date = new Date(value.seconds * 1000)
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, "0")
+    const d = String(date.getDate()).padStart(2, "0")
+    return `${y}-${m}-${d}`
+  }
+
+  // Already string
+  return String(value)
+}
 
   const handleToggleStatus = async (client: Client) => {
     const newStatus = client.status === "active" ? "disabled" : "active"
@@ -127,6 +147,71 @@ export function RCSClientsTable({ clients, onUpdate }: RCSClientsTableProps) {
         }
       }, [clients])
 
+      useEffect(() => {
+  liveClients.forEach(async (client) => {
+    const online =
+      resolveHeartbeatStatus(client.lastSeen) === "online"
+
+    if (!online) return
+
+    const result = await fetchClosingResult(client.id)
+    if (!result) return
+
+    setClosingInfo((prev) => ({
+      ...prev,
+      [client.id]: result,
+    }))
+  })
+}, [liveClients])
+
+async function fetchClosingResult(clientId: string) {
+  // 1️⃣ Fetch ALL successful commands for this client
+  const cmdSnap = await getDocs(
+    query(
+      collection(db, "commands"),
+      where("clientId", "==", clientId) // ✅ single where → index-free
+    )
+  )
+
+  if (cmdSnap.empty) return null
+
+  // 2️⃣ Filter in JS (index-free)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const todaysCommands = cmdSnap.docs
+    .map(d => d.data())
+    .filter(cmd =>
+      cmd.queryId === "kvshJ7oJ4x8GXgZOi950" &&
+      cmd.status === "success" &&
+      cmd.createdAt?.toDate() >= today
+    )
+
+  if (todaysCommands.length === 0) return null
+
+  // 3️⃣ Pick latest command (JS sort)
+  const latest = todaysCommands.sort(
+    (a, b) =>
+      b.createdAt.toDate().getTime() -
+      a.createdAt.toDate().getTime()
+  )[0]
+
+  if (!latest.resultsPath) return null
+
+  // 4️⃣ Read temp query results
+  const rowsSnap = await getDocs(
+    collection(db, `${latest.resultsPath}/rows`)
+  )
+
+  if (rowsSnap.empty) return null
+
+  const row = rowsSnap.docs[0].data()
+
+  return {
+    date: row.lastdate ?? "—",
+    balance: row.closingbalance ?? "—",
+  }
+}
 
   if (clients.length === 0) {
     return (
@@ -183,8 +268,13 @@ export function RCSClientsTable({ clients, onUpdate }: RCSClientsTableProps) {
                   })()}
                 </TableCell>
                 
-                <TableCell></TableCell>
-                <TableCell></TableCell>
+                <TableCell>
+                  {formatDate(closingInfo[client.id]?.date ?? "—")}
+                </TableCell>
+                
+                <TableCell>
+                  {closingInfo[client.id]?.balance ?? "—"}
+                  </TableCell>
               </TableRow>
             ))}
           </TableBody>

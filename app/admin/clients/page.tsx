@@ -27,10 +27,13 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>("admin")
+  
 
   useEffect(() => {
     fetchClients()
+    fetch("/api/clients/auto-execute").catch(console.error)
   }, [])
+  
 
   const fetchClients = async () => {
     try {

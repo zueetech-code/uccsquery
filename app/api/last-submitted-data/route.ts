@@ -5,7 +5,24 @@ export async function GET() {
   const client = await pool.connect();
   try {
     const result = await client.query(`
-      SELECT * FROM report_insert_log;
+      SELECT 
+  id,
+  client_name,
+  sds_code,
+  report_date::text AS report_date,
+  branch_name,
+  branch_inserted,
+  members_inserted,
+  deposits_inserted,
+  loans_inserted,
+  jewel_inserted,
+  employee_inserted,
+  npa_inserted,
+  profit_inserted,
+  safety_inserted,
+  created_at,
+  submission_type
+FROM report_insert_log;
     `);
     //console.log("Last submitted data query result:", result.rows);
 
