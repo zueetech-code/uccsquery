@@ -29,6 +29,7 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>("admin")
+  const [filter, setFilter] = useState<"all" | "online" | "offline">("all")
   
   // Calculate stats from clients
   const stats = useMemo(() => {
@@ -38,6 +39,13 @@ export default function ClientsPage() {
     
     return { total, online, offline }
   }, [clients])
+
+  // Filter clients based on selected card
+  const filteredClients = useMemo(() => {
+    if (filter === "all") return clients
+    if (filter === "online") return clients.filter(c => resolveHeartbeatStatus(c.lastSeen) === "online")
+    return clients.filter(c => resolveHeartbeatStatus(c.lastSeen) === "offline")
+  }, [clients, filter])
   
 
   useEffect(() => {
@@ -153,7 +161,14 @@ export default function ClientsPage() {
         <>
           {/* Stat Cards */}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <Card className="border-white/20 cursor-default">
+            <Card 
+              className={`border-white/20 cursor-pointer transition-all duration-300 ${
+                filter === "all"
+                  ? "border-primary/30 bg-white/95 ring-1 ring-primary/30 shadow-xl"
+                  : "hover:border-primary/20 hover:bg-white/90"
+              }`}
+              onClick={() => setFilter("all")}
+            >
               <CardHeader className="pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Total Clients
@@ -162,12 +177,19 @@ export default function ClientsPage() {
               <CardContent>
                 <div className="text-3xl font-bold tracking-tight text-foreground">{stats.total}</div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  All active clients
+                  {filter === "all" ? "All clients" : "Click to view all"}
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-white/20 cursor-default">
+            <Card 
+              className={`border-white/20 cursor-pointer transition-all duration-300 ${
+                filter === "online"
+                  ? "border-accent/30 bg-white/95 ring-1 ring-accent/30 shadow-xl"
+                  : "hover:border-accent/20 hover:bg-white/90"
+              }`}
+              onClick={() => setFilter("online")}
+            >
               <CardHeader className="pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Online Clients
@@ -179,12 +201,19 @@ export default function ClientsPage() {
                   <span className="h-3 w-3 rounded-full bg-accent/80 animate-pulse" />
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Currently active
+                  {filter === "online" ? "Showing online" : "Click to view"}
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-white/20 cursor-default">
+            <Card 
+              className={`border-white/20 cursor-pointer transition-all duration-300 ${
+                filter === "offline"
+                  ? "border-destructive/30 bg-white/95 ring-1 ring-destructive/30 shadow-xl"
+                  : "hover:border-destructive/20 hover:bg-white/90"
+              }`}
+              onClick={() => setFilter("offline")}
+            >
               <CardHeader className="pb-3">
                 <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Offline Clients
@@ -196,7 +225,7 @@ export default function ClientsPage() {
                   <span className="h-3 w-3 rounded-full bg-destructive/60" />
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Currently inactive
+                  {filter === "offline" ? "Showing offline" : "Click to view"}
                 </p>
               </CardContent>
             </Card>
@@ -206,16 +235,37 @@ export default function ClientsPage() {
           <Card>
             <CardHeader>
               <CardTitle>
-                {userRole === "engineer" ? "Assigned Clients" : "All Clients"}
+                {filter === "all"
+                  ? userRole === "engineer" ? "Assigned Clients" : "All Clients"
+                  : filter === "online"
+                    ? "Online Clients"
+                    : "Offline Clients"}
               </CardTitle>
               <CardDescription>
-                {userRole === "engineer"
-                  ? "Clients assigned to you"
-                  : "All client accounts in the system"}
+                Showing {filteredClients.length} of {clients.length} clients
+                {filter !== "all" && (
+                  <button
+                    onClick={() => setFilter("all")}
+                    className="ml-3 text-primary hover:underline"
+                  >
+                    Clear filter
+                  </button>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <RCSClientsTable clients={clients} onUpdate={fetchClients} />
+              {filteredClients.length === 0 ? (
+                <div className="flex h-[250px] items-center justify-center rounded-lg border border-white/20 border-dashed bg-white/40">
+                  <div className="text-center">
+                    <h3 className="text-sm font-semibold text-foreground">No clients found</h3>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                      No clients match the selected filter.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <RCSClientsTable clients={filteredClients} onUpdate={fetchClients} />
+              )}
             </CardContent>
           </Card>
         </>
