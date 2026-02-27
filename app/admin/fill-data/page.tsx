@@ -652,7 +652,7 @@ const handleLogout = async () => {
        STEP 4: ALWAYS RUN DATE-DEPENDENT QUERIES
     ======================================================= */
 
-    setProgress("Executing Deposit/Loan/Member query...")
+    setProgress("Fetching Deposit/Loan/Member Details...")
 
     combined = await runQuery("deposit")
 
@@ -662,7 +662,7 @@ const handleLogout = async () => {
     newData.deposit = allRows.filter((r: { modules: string }) => r.modules === "Deposits")
     newData.loan = allRows.filter((r: { modules: string }) => r.modules === "Loans")
 
-    setProgress("Executing Jewel query...")
+    setProgress("Fetching Jewel Details...")
 
     jewelResult = await runQuery("jewel")
 
@@ -683,7 +683,7 @@ const handleLogout = async () => {
     setFetchedData(newData)
     setColumnOrders(newColumnOrders)
 
-    setProgress("All queries completed successfully")
+    setProgress("Data Fetch completed successfully")
     if (newData.branch && newData.branch.length > 0) {
       const firstRow = newData.branch[0]
 
@@ -701,7 +701,7 @@ const handleLogout = async () => {
   }
    catch (error) {
     console.error(error)
-    setProgress("Error while executing queries")
+    setProgress("Error while Fetching Details")
   }
 
   setLoading(false)
@@ -709,12 +709,48 @@ const handleLogout = async () => {
 
 const formatDateOnly = (value: any) => {
   if (!value) return ""
-  if (typeof value === "string" && value.includes("T")) {
-    return value.split("T")[0] // YYYY-MM-DD
+
+  // ✅ Safe YYYY-MM-DD string → return as-is
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value
   }
-  return value
+
+  // ✅ ISO string → strip time (no Date parsing)
+  if (typeof value === "string" && value.includes("T")) {
+    return value.split("T")[0]
+  }
+
+  // ✅ Firestore Timestamp → LOCAL date (IST safe)
+  if (typeof value === "object" && value?.seconds) {
+    const d = new Date(value.seconds * 1000)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
+  }
+
+  return String(value)
 }
 
+const normalizeRowsDates = (rows: any[]) =>
+  rows.map(row => {
+    const out: any = {}
+    for (const k in row) {
+      out[k] = k.toLowerCase().includes("date")
+        ? formatDateOnly(row[k])
+        : row[k]
+    }
+    return out
+  })
+
+const forceDateAndSds = (date: string, sds: string) => {
+  setReportDate(date)
+
+  setNpaData(p => ({ ...p, Date: date, SDSCode: sds }))
+  setProfitData(p => ({ ...p, Date: date, SDSCode: sds }))
+  setEmpData(p => ({ ...p, Date: date, SDSCode: sds }))
+  setSafetyData(p => ({ ...p, Date: date, SDSCode: sds }))
+}
 
 const handleGetDataOffline = async (): Promise<boolean> => {
   if (!clientName || !Fromdate) {
@@ -724,69 +760,189 @@ const handleGetDataOffline = async (): Promise<boolean> => {
 
   try {
     setLoading(true)
-    setProgress("Loading from local server...")
+    setProgress("Checking offline data...")
 
-    const res = await fetch("/api/get-report", {
+    /* =====================================================
+       CASE 1: EXACT SAME DATE EXISTS (FULL LOAD)
+    ===================================================== */
+    const exactRes = await fetch("/api/get-report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clientName,
-        fromDate: Fromdate
+        fromDate: Fromdate,
+        exact: true
       })
     })
 
-    if (!res.ok) {
-      return false
+    if (exactRes.ok) {
+      const data = await exactRes.json()
+
+      if (data?.branch?.length) {
+        const normalizeRows = (rows: any[]) =>
+          rows.map(r => {
+            const o: any = {}
+            for (const k in r) {
+              o[k] = k.toLowerCase().includes("date")
+                ? formatDateOnly(r[k])
+                : r[k]
+            }
+            return o
+          })
+
+        const normalizeSafety = (raw: any) => ({
+          SDSCode: raw?.sds_code ?? raw?.SDSCode ?? "",
+          Date: raw?.date ?? raw?.Date ?? "",
+          SafetyLocker: raw?.safety_locker ?? raw?.SafetyLocker ?? "",
+          DefenderDoor: raw?.defender_door ?? raw?.DefenderDoor ?? "",
+          BurglaryAlarm: raw?.burglary_alarm ?? raw?.BurglaryAlarm ?? "",
+          CCTV: raw?.cctv ?? raw?.CCTV ?? "",
+          SMSAlert: raw?.sms_alert ?? raw?.SMSAlert ?? "",
+        })
+
+        setFetchedData({
+          branch: normalizeRows(data.branch),
+          member: normalizeRows(data.member),
+          deposit: normalizeRows(data.deposit),
+          loan: normalizeRows(data.loan),
+          jewel: normalizeRows(data.jewel),
+        })
+
+        setColumnOrders({
+          branch: deriveColumnOrder(data.branch),
+          member: deriveColumnOrder(data.member),
+          deposit: deriveColumnOrder(data.deposit),
+          loan: deriveColumnOrder(data.loan),
+          jewel: deriveColumnOrder(data.jewel),
+        })
+
+        const sds = data.sdsCode || ""
+        const date = data.fromDate || Fromdate
+
+        setSdsCode(sds)
+        forceDateAndSds(Fromdate, sds)
+
+          setNpaData(p => ({ ...p, ...data.npa }))
+          setProfitData(p => ({ ...p, ...data.profit }))
+          setEmpData(p => ({ ...p, ...data.emp }))
+          setSafetyData(normalizeSafety({
+            ...data.safety,
+            date: Fromdate
+          }))
+
+        setProgress("Loaded exact offline report")
+        return true
+      }
     }
 
-    const data = await res.json()
+    /* =====================================================
+       CASE 2: NEW DATE, PREVIOUS OFFLINE DATA EXISTS
+    ===================================================== */
+    setProgress("Checking latest offline record...")
 
-    // 🔥 Check if empty
-    if (!data || !data.branch || data.branch.length === 0) {
-      return false
+    const latestRes = await fetch("/api/get-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientName,
+        latest: true
+      })
+    })
+
+    if (latestRes.ok) {
+      const latest = await latestRes.json()
+
+      if (latest?.branch?.length) {
+        // 🔹 STATIC COPY (NO BRANCH QUERY)
+        setFetchedData({
+          branch: latest.branch,
+          member: [],
+          deposit: [],
+          loan: [],
+          jewel: []
+        })
+
+        setColumnOrders({
+          branch: deriveColumnOrder(latest.branch),
+          member: [],
+          deposit: [],
+          loan: [],
+          jewel: []
+        })
+
+        const sds = latest.sdsCode || ""
+        setSdsCode(sds)
+        
+
+        forceDateAndSds(Fromdate, sds)
+       
+        setNpaData(p => ({ ...p, ...latest.npa }))
+        setProfitData(p => ({ ...p, ...latest.profit }))
+        setEmpData(p => ({ ...p, ...latest.emp }))
+        setSafetyData(latest.safety)
+
+        // 🔥 RUN DATE-DEPENDENT QUERIES
+        const combined = await runQuery("deposit")
+        const jewelRes = await runQuery("jewel")
+
+        const rows = combined.rows || []
+
+        setFetchedData((prev: any) => ({
+          ...prev,
+          member: rows.filter((r: any) => r.modules === "Members"),
+          deposit: rows.filter((r: any) => r.modules === "Deposits"),
+          loan: rows.filter((r: any) => r.modules === "Loans"),
+          jewel: jewelRes.rows || []
+        }))
+
+        setColumnOrders((prev: any) => ({
+          ...prev,
+          member: combined.columnOrder,
+          deposit: combined.columnOrder,
+          loan: combined.columnOrder,
+          jewel: jewelRes.columnOrder
+        }))
+
+        setProgress("Offline data prepared (new date)")
+        return true
+      }
     }
 
-    // 🔥 Populate state
-    // 🔥 Populate table data
-const normalizeRows = (rows: any[]) =>
-  rows.map(row => {
-    const cleaned: any = {}
-    for (const key in row) {
-      cleaned[key] =
-        key.toLowerCase().includes("date") || key.toLowerCase().includes("created_at") || key.toLowerCase().includes("modified_at")
-          ? formatDateOnly(row[key])
-          : row[key]
+    /* =====================================================
+       CASE 3: NO OFFLINE DATA AT ALL
+    ===================================================== */
+    setProgress("No offline data found. Running all queries...")
+
+    const branchRes = await runQuery("branch")
+    const combined = await runQuery("deposit")
+    const jewelRes = await runQuery("jewel")
+
+    const rows = combined.rows || []
+
+    setFetchedData({
+      branch: branchRes.rows,
+      member: rows.filter((r: any) => r.modules === "Members"),
+      deposit: rows.filter((r: any) => r.modules === "Deposits"),
+      loan: rows.filter((r: any) => r.modules === "Loans"),
+      jewel: jewelRes.rows
+    })
+
+    setColumnOrders({
+      branch: branchRes.columnOrder,
+      member: combined.columnOrder,
+      deposit: combined.columnOrder,
+      loan: combined.columnOrder,
+      jewel: jewelRes.columnOrder
+    })
+
+    if (branchRes.rows?.length) {
+      const first = branchRes.rows[0]
+      setSdsCode(first.sdscode || first.SDSCODE || "")
     }
-    return cleaned
-  })
 
-setFetchedData({
-  branch: normalizeRows(data.branch || []),
-  member: normalizeRows(data.member || []),
-  deposit: normalizeRows(data.deposit || []),
-  loan: normalizeRows(data.loan || []),
-  jewel: normalizeRows(data.jewel || [])
-})
-
-// 🔥 Generate column orders from local DB rows
-setColumnOrders({
-  branch: deriveColumnOrder(data.branch),
-  member: deriveColumnOrder(data.member),
-  deposit: deriveColumnOrder(data.deposit),
-  loan: deriveColumnOrder(data.loan),
-  jewel: deriveColumnOrder(data.jewel),
-})
-const sds = data.sdsCode || ""
-const date = data.fromDate || Fromdate
-
-setSdsCode(sds)
-setReportDate(date)
-
-setNpaData(prev => ({ ...prev, ...data.npa, SDSCode: sds, Date: date }))
-setProfitData(prev => ({ ...prev, ...data.profit, SDSCode: sds, Date: date }))
-setSafetyData(prev => ({ ...prev, ...data.safety, SDSCode: sds, Date: date }))
-setEmpData(prev => ({ ...prev, ...data.emp, SDSCode: sds, Date: date }))
-    setProgress("Loaded from offline server")
+    setReportDate(Fromdate)
+    syncMetaIntoTabs()
+    setProgress("Fresh offline data loaded")
     return true
 
   } catch (err) {
@@ -797,38 +953,20 @@ setEmpData(prev => ({ ...prev, ...data.emp, SDSCode: sds, Date: date }))
   }
 }
 const handleGetData = async () => {
-
   if (!saveOptions.online && !saveOptions.offline) {
     alert("Please select at least one mode")
     return
   }
 
-  // 🔵 OFFLINE ONLY
-  if (!saveOptions.online && saveOptions.offline) {
-    const found = await handleGetDataOffline()
-
-    if (!found) {
-      console.log("Offline data not found → Running online mode...")
-      await handleGetDataOnline()
-    }
-
+  // 🔵 OFFLINE MODE → EVERYTHING INSIDE OFFLINE HANDLER
+  if (saveOptions.offline) {
+    await handleGetDataOffline()
     return
   }
 
   // 🟢 ONLINE ONLY
   if (saveOptions.online && !saveOptions.offline) {
     await handleGetDataOnline()
-    return
-  }
-
-  // 🟣 BOTH SELECTED
-  if (saveOptions.online && saveOptions.offline) {
-    const found = await handleGetDataOffline()
-
-    if (!found) {
-      alert("Offline data not found. Loaded from Online source.")
-      await handleGetDataOnline()
-    }
   }
 }
 const saveToFirebase = async () => {
@@ -976,11 +1114,11 @@ const handleSubmitReport = async () => {
 
     // 🔥 Success Message
     if (saveOptions.online && saveOptions.offline) {
-      alert("Saved to BOTH Online and Local Server successfully!")
+      alert("Saved to Server successfully!")
     } else if (saveOptions.online) {
       alert("Saved to Online successfully!")
     } else {
-      alert("Saved to Local Server successfully!")
+      alert("Saved to Server successfully!")
     }
 
     resetall()
@@ -992,6 +1130,13 @@ const handleSubmitReport = async () => {
     alert("Error saving report")
   }
 }
+const SAFETY_KEYS = [
+  "SafetyLocker",
+  "DefenderDoor",
+  "BurglaryAlarm",
+  "CCTV",
+  "SMSAlert",
+] as const
 const resetall = () => {
   // 🔥 CLEAR EVERYTHING AFTER SAVE
       setFetchedData({
@@ -1618,35 +1763,33 @@ const renderTabContent = () => {
                   />
                 </div>
 
-                {Object.keys(safetyData)
-                  .filter(key => key !== "SDSCode" && key !== "Date")
-                  .map((key) => {
-                  const labelText = key.replace(/([A-Z])/g, ' $1').trim();
+                {SAFETY_KEYS.map((key) => {
+                    const labelText = key.replace(/([A-Z])/g, " $1").trim()
 
-                  return (
-                    <div className="flex items-center" key={key}>
-                      <Label className="w-64">{labelText}</Label>
+                    return (
+                      <div className="flex items-center" key={key}>
+                        <Label className="w-64">{labelText}</Label>
 
-                      <Select
-                        value={safetyData[key as keyof typeof safetyData] || ""}
-                        onValueChange={(val: string) =>
-                          setSafetyData({
-                            ...safetyData,
-                            [key]: val // Type-safe assignment
-                          })
-                        }
-                      >
-                        <SelectTrigger className="w-32 h-8 rounded-none">
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Yes">Yes</SelectItem>
-                          <SelectItem value="No">No</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  );
-                })}
+                        <Select
+                          value={safetyData[key] || ""}
+                          onValueChange={(val) =>
+                            setSafetyData({
+                              ...safetyData,
+                              [key]: val,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-32 h-8 rounded-none">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Yes">Yes</SelectItem>
+                            <SelectItem value="No">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )
+                  })}
 
               </div>
             );

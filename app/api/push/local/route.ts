@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { pool } from "@/lib/db"
 import https from "https"
+import { logPushStatus } from "@/lib/pushLogger"
 export const runtime = "nodejs"
 
 /* ================= CONFIG ================= */
@@ -159,6 +160,14 @@ export async function POST(req: Request) {
               : await safeFetch(DEPOSIT_LOAN_URL, payload)
 
             depositLoanResponses.push(res)
+            await logPushStatus({
+                        source: "Server",
+                        clientName,
+                        fromDate,
+                        module: "DEPOSIT/LOAN/MEMBER",
+                        response: res,
+                        status: DRY_RUN ? "DRY_RUN" : res?.success ? "SUCCESS" : "FAILED",
+                      })
           }))
         }
 
@@ -183,6 +192,14 @@ export async function POST(req: Request) {
               : await safeFetch(JEWEL_URL, payload)
 
             jewelResponses.push(res)
+            await logPushStatus({
+                        source: "Server",
+                        clientName,
+                        fromDate,
+                        module: "JEWEL",
+                        response: res,
+                        status: DRY_RUN ? "DRY_RUN" : res?.success ? "SUCCESS" : "FAILED",
+                      })
           }))
         }
 
@@ -199,7 +216,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      source: "POSTGRES",
+      source: "Server",
       mode: DRY_RUN ? "DRY_RUN" : "LIVE",
       results,
     })

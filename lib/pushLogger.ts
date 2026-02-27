@@ -8,7 +8,7 @@ export async function logPushStatus({
   response,
   status,
 }: {
-  source: "FIREBASE" | "POSTGRES"
+  source: "FIREBASE" | "Server"
   clientName: string
   fromDate: string
   module: string

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db"; // Database connection
+import { logPushStatus } from "@/lib/pushLogger"
 
 export async function GET() {
   const client = await pool.connect();
