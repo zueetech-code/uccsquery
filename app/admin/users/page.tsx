@@ -53,48 +53,54 @@ export default function UsersPage() {
 
   // Create User Function
   async function handleCreate() {
-    try {
-      setLoading(true)
+  if (!confirm(`Are you sure you want to create user ${email}?`)) return
 
-      const res = await fetch("/api/admin/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
-      })
+  try {
+    setLoading(true)
 
-      const data = await res.json()
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, role }),
+    })
 
-      if (!res.ok) {
-        alert(data.error)
-        return
-      }
+    const data = await res.json()
 
-      // ✅ Show success message
-      alert(`User ${email} created successfully!`)
-
-      setEmail("")
-      setPassword("")
-      setRole("agent")
-      setOpen(false)
-      loadUsers()
-    } catch (err) {
-      alert("Error creating user")
-    } finally {
-      setLoading(false)
+    if (!res.ok) {
+      alert(data.error)
+      return
     }
+
+    alert(`User ${email} created successfully!`)
+
+    setEmail("")
+    setPassword("")
+    setRole("agent")
+    setOpen(false)
+    loadUsers()
+  } catch (err) {
+    alert("Error creating user")
+  } finally {
+    setLoading(false)
   }
+}
 
   // Toggle active/inactive status
   async function toggleActive(user: UserType) {
-    try {
-      const ref = doc(db, "users", user.id)
-      await updateDoc(ref, { active: !user.active })
-      alert(`User ${user.email} is now ${user.active ? "inactive" : "active"}`)
-      loadUsers()
-    } catch (err) {
-      alert("Failed to update user status")
-    }
+  const action = user.active ? "deactivate" : "activate"
+
+  if (!confirm(`Are you sure you want to ${action} ${user.email}?`)) return
+
+  try {
+    const ref = doc(db, "users", user.id)
+    await updateDoc(ref, { active: !user.active })
+
+    alert(`User ${user.email} is now ${user.active ? "inactive" : "active"}`)
+    loadUsers()
+  } catch (err) {
+    alert("Failed to update user status")
   }
+}
 
   // Delete user
   async function deleteUser(user: UserType) {
@@ -118,12 +124,12 @@ export default function UsersPage() {
 
   // Update role for existing users
   async function updateUserRole(user: UserType, newRole: string) {
-    try {
-      const ref = doc(db, "users", user.id)
-      await updateDoc(ref, { role: newRole })
-      
-     // Update Firebase Auth claims
-      // 2️⃣ Update Firebase Auth Custom Claims
+  if (!confirm(`Change role of ${user.email} to ${newRole}?`)) return
+
+  try {
+    const ref = doc(db, "users", user.id)
+    await updateDoc(ref, { role: newRole })
+
     const res = await fetch("/api/set-role", {
       method: "POST",
       headers: {
@@ -138,24 +144,31 @@ export default function UsersPage() {
     if (!res.ok) {
       throw new Error("Failed to update auth claims")
     }
-      
-      alert(`User role updated to ${newRole}`)
-      loadUsers()
-    } catch (err) {
-      alert("Failed to update user role")
-    }
+
+    alert(`User role updated to ${newRole}`)
+    loadUsers()
+  } catch (err) {
+    alert("Failed to update user role")
   }
+}
  
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">User Management</h1>
+ return (
+  <div className="min-h-screen bg-slate-50 p-8">
+    <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Create User Button */}
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-slate-800">
+          User Management
+        </h1>
+
+        {/* Create User Dialog */}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>Create User</Button>
+            <Button className="rounded-lg px-6">
+              + Create User
+            </Button>
           </DialogTrigger>
 
           <DialogContent>
@@ -200,37 +213,70 @@ export default function UsersPage() {
         </Dialog>
       </div>
 
-      {/* User List */}
-      <div className="space-y-3">
+      {/* Users Table */}
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+
+        {/* Table Header */}
+        <div className="grid grid-cols-6 gap-4 px-6 py-4 bg-slate-100 text-sm font-semibold text-slate-600 border-b">
+          <div>Email</div>
+          <div>Role</div>
+          <div>Status</div>
+          <div>Change Role</div>
+          <div>Toggle</div>
+          <div>Delete</div>
+        </div>
+
+        {/* Users Rows */}
         {users.map((user) => (
           <div
             key={user.id}
-            className="flex justify-between items-center border p-3 rounded-lg"
+            className="grid grid-cols-6 gap-4 px-6 py-4 items-center border-b last:border-0 hover:bg-slate-50 transition"
           >
-            <div>
-              <p className="font-medium">{user.email}</p>
-              <p className="text-sm text-gray-500">
-                Role: {user.role} | {user.active ? "Active" : "Inactive"}
-              </p>
-              {/* Add ability to change role for users */}
-              <div className="w-32">
-                <Select
-                  value={user.role}
-                  onValueChange={(newRole) => updateUserRole(user, newRole)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="engineer">Engineer</SelectItem>
-                    <SelectItem value="ercs">ERCS</SelectItem>
-                    <SelectItem value="agent">Agent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Email */}
+            <div className="font-medium text-slate-800 truncate">
+              {user.email}
             </div>
-            <div className="flex gap-2">
+
+            {/* Role */}
+            <div>
+              <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs">
+                {user.role}
+              </span>
+            </div>
+
+            {/* Status */}
+            <div>
+              <span
+                className={`px-3 py-1 rounded-full text-white text-xs font-medium ${
+                  user.active ? "bg-emerald-500" : "bg-slate-400"
+                }`}
+              >
+                {user.active ? "Active" : "Inactive"}
+              </span>
+            </div>
+
+            {/* Change Role */}
+            <div className="w-36">
+              <Select
+                value={user.role}
+                onValueChange={(newRole) =>
+                  updateUserRole(user, newRole)
+                }
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="engineer">Engineer</SelectItem>
+                  <SelectItem value="ercs">ERCS</SelectItem>
+                  <SelectItem value="agent">Agent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Activate / Deactivate */}
+            <div>
               <Button
                 size="sm"
                 variant={user.active ? "destructive" : "default"}
@@ -238,6 +284,10 @@ export default function UsersPage() {
               >
                 {user.active ? "Deactivate" : "Activate"}
               </Button>
+            </div>
+
+            {/* Delete */}
+            <div>
               <Button
                 size="sm"
                 variant="destructive"
@@ -248,7 +298,9 @@ export default function UsersPage() {
             </div>
           </div>
         ))}
+
       </div>
     </div>
-  )
+  </div>
+)
 }

@@ -227,14 +227,14 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground mt-2">Welcome to your admin panel</p>
           </div>
-          {(role === "admin" || role === "engineer" || role === "ercs") && (
+          {/* {(role === "admin" || role === "engineer" || role === "ercs") && (
             <button
               onClick={() => setShowPushModal(true)}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors shadow-lg"
             >
               Push to RCS
             </button>
-          )}
+          )} */}
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
