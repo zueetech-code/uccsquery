@@ -641,7 +641,7 @@ const handleLogout = async () => {
          STEP 3: NO REPORTS AT ALL → RUN BRANCH QUERY
       ======================================================= */
 
-      setProgress("No previous report found. Executing Branch query...")
+      setProgress("No previous report found. Fetching Branch Details...")
 
       branchResult = await runQuery("branch")
 
