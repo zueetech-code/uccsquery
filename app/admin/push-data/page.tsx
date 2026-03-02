@@ -185,7 +185,7 @@ function deriveFinalClientStatus(logs: any[]) {
         message: "Pushing data to RCS. Please wait...",
       });
 
-      const res = await fetch("/api/push/local", {
+      const res = await fetch("/api/push/rcs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
