@@ -85,6 +85,13 @@ export default function DatabaseCredentialsPage() {
       </div>
     )
   }
+  const configuredClientIds = new Set<string>(
+  configs.map((config) => config.clientId)
+)
+
+const unconfiguredClients = clients.filter(
+  (client) => !configuredClientIds.has(client.id)
+)
 
   return (
     <div className="space-y-6">
@@ -93,7 +100,7 @@ export default function DatabaseCredentialsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Database Credentials</h1>
           <p className="text-muted-foreground">Securely manage database access for clients</p>
         </div>
-        <CreateDbConfigDialog clients={clients} onSuccess={fetchData} />
+        <CreateDbConfigDialog clients={unconfiguredClients} onSuccess={fetchData} />
       </div>
 
       <Alert>
