@@ -396,31 +396,31 @@ const submissionType =
     npa.SDSCode,
     npa.Date,
 
-    toNum(npa.GNPA.amount),
-    toNum(npa.GNPA.percent),
+    toNum(npa?.GNPA?.amount),
+    toNum(npa?.GNPA?.percent),
 
-    toNum(npa.NNPA.amount),
-    toNum(npa.NNPA.percent),
+    toNum(npa?.NNPA?.amount),
+    toNum(npa?.NNPA?.percent),
 
-    toNum(npa.ProvisionPercent),
+    toNum(npa?.ProvisionPercent),
 
-    toInt(npa.TotalOverdue.count),
-    toNum(npa.TotalOverdue.amount),
+    toInt(npa?.TotalOverdue?.count),
+    toNum(npa?.TotalOverdue?.amount),
 
-    toInt(npa.NoActionTaken.count),
-    toNum(npa.NoActionTaken.amount),
+    toInt(npa?.NoActionTaken?.count),
+    toNum(npa?.NoActionTaken?.amount),
 
-    toInt(npa.RegisteredNoticesSent.count),
-    toNum(npa.RegisteredNoticesSent.amount),
+    toInt(npa?.RegisteredNoticesSent?.count),
+    toNum(npa?.RegisteredNoticesSent?.amount),
 
-    toInt(npa.ActionTaken.ARC.count),
-    toNum(npa.ActionTaken.ARC.amount),
+    toInt(npa?.ActionTaken?.ARC?.count),
+    toNum(npa?.ActionTaken?.ARC?.amount),
 
-    toInt(npa.ActionTaken.DECREE.count),
-    toNum(npa.ActionTaken.DECREE.amount),
+    toInt(npa?.ActionTaken?.DECREE?.count),
+    toNum(npa?.ActionTaken?.DECREE?.amount),
 
-    toInt(npa.ActionTaken.EP.count),
-    toNum(npa.ActionTaken.EP.amount),
+    toInt(npa?.ActionTaken?.EP?.count),
+    toNum(npa?.ActionTaken?.EP?.amount),
   ]
 )
 

@@ -324,7 +324,7 @@ const handleLogout = async () => {
 
           XLSX.writeFile(
             wb,
-            `Report_${sdsCode}_${reportDate}.xlsx`
+            `Report_${sdsCode}_${clientName}_${reportDate}.xlsx`
           )
         }
       //Handle Preview and Download

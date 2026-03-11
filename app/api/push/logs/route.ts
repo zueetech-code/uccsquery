@@ -15,7 +15,7 @@ export async function GET() {
 FROM push_logs
 ORDER BY created_at DESC;
     `);
-    console.log("Push logs query result:", result.rows);
+    //console.log("Push logs query result:", result.rows);
     return NextResponse.json(result.rows);
   } catch (error) {
     console.error("Error fetching push logs:", error);

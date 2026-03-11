@@ -18,6 +18,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { getFirestore, collection, addDoc } from "firebase/firestore"
+import { districts } from "@/lib/districts"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface CreateClientDialogProps {
   onSuccess: () => void
@@ -28,6 +33,8 @@ export function CreateClientDialog({ onSuccess }: CreateClientDialogProps) {
   const [name, setName] = useState("")
   const [status, setStatus] = useState<"active" | "disabled">("active")
   const [loading, setLoading] = useState(false)
+  const [district, setDistrict] = useState("")
+  const [openDistrict, setOpenDistrict] = useState(false)
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,6 +49,7 @@ export function CreateClientDialog({ onSuccess }: CreateClientDialogProps) {
 
       const clientData = {
         name,
+        district,
         status,
         clientId,
         agentUid: null,
@@ -101,6 +109,45 @@ export function CreateClientDialog({ onSuccess }: CreateClientDialogProps) {
                 required
                 disabled={loading}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>District</Label>
+
+              <Popover open={openDistrict} onOpenChange={setOpenDistrict}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between"
+                  >
+                    {district || "Select district"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] max-h-60 p-0">
+                  <Command>
+                    <CommandInput placeholder="Search district..." />
+
+                    <CommandEmpty>No district found.</CommandEmpty>
+
+                    <CommandGroup className="overflow-auto max-h-60">
+                      {districts.map((d) => (
+                        <CommandItem
+                          key={d}
+                          value={d}
+                          onSelect={(value) => {
+                            setDistrict(value)
+                            setOpenDistrict(false)
+                          }}
+                        >
+                          {d}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>

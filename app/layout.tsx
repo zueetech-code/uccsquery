@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import { startCommandTimeoutWorker } from "@/lib/commandtimeout"
 
 import "./globals.css"
 
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
     icon: "/icon.png",
   },
 }
-
+startCommandTimeoutWorker()
 export default function RootLayout({
   children,
 }: Readonly<{

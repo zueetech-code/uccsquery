@@ -17,22 +17,54 @@ const JEWEL_URL =
 
 /* ================= SAFE FETCH ================= */
 
-async function safeFetch(url: string, payload: any) {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.RCS_API_KEY!,
-      },
-      body: JSON.stringify(payload),
-    })
+/* ================= SAFE FETCH ================= */
 
-    const text = await res.text()
-    try { return JSON.parse(text) } catch { return text }
-  } catch (err: any) {
-    return { error: err.message }
+async function safeFetch(url: string, payload: any, retries = 3) {
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+
+    try {
+
+      const controller = new AbortController()
+
+      const timeout = setTimeout(() => {
+        controller.abort()
+      }, REQUEST_TIMEOUT)
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.RCS_API_KEY!,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeout)
+
+      const text = await res.text()
+
+      try {
+        return JSON.parse(text)
+      } catch {
+        return text
+      }
+
+    } catch (err: any) {
+
+      if (attempt === retries) {
+        return { error: err.message }
+      }
+
+      console.log(`Retry ${attempt} failed. Retrying...`)
+
+      await new Promise(r => setTimeout(r, 2000))
+
+    }
+
   }
+
 }
 
 /* ================= API ================= */

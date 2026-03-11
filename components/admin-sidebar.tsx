@@ -62,6 +62,12 @@ const adminMenuItems = [
     icon: Play,                 // Appropriate icon
     roles: ["admin"],           // Only for admin role
   },
+   {
+    title: "Data",
+    href: "/admin/multi-client-dashboard",
+    icon: ScrollText,
+    roles: ["admin"],
+  },
   {
     title: "Logs",
     href: "/admin/logs",

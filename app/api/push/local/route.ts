@@ -41,32 +41,48 @@ const toDateOnly = (value: string) => {
 
 /* ================= SAFE FETCH ================= */
 
-async function safeFetch(url: string, payload: any) {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+async function safeFetch(url: string, payload: any, retries = 3) {
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.RCS_API_KEY!,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-      // @ts-ignore
-      agent: httpsAgent,
-    })
+  for (let attempt = 1; attempt <= retries; attempt++) {
 
-    const text = await res.text()
-    let data
-    try { data = JSON.parse(text) } catch { data = text }
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
-    return data
-  } catch (err: any) {
-    return { error: err.message }
-  } finally {
-    clearTimeout(timeout)
+    try {
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.RCS_API_KEY!,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+        // @ts-ignore
+        agent: httpsAgent,
+      })
+
+      const text = await res.text()
+
+      let data
+      try { data = JSON.parse(text) } catch { data = text }
+
+      clearTimeout(timeout)
+
+      return data
+
+    } catch (err: any) {
+
+      clearTimeout(timeout)
+
+      if (attempt === retries) {
+        return { error: err.message }
+      }
+
+      console.log(`Retry ${attempt} failed... retrying`)
+
+      await new Promise(r => setTimeout(r, 2000))
+    }
   }
 }
 
