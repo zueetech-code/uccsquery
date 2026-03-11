@@ -365,7 +365,7 @@ export default function PushDataPage() {
             }}
           >
             <CardHeader>
-              <CardTitle>Firebase Submitted</CardTitle>
+              <CardTitle>Online Submitted</CardTitle>
             </CardHeader>
             <CardContent>{firebaseToday.length}</CardContent>
           </Card>

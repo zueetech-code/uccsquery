@@ -31,56 +31,6 @@ export function RCSClientsTable({ clients }: Props) {
   /* ================= FETCH CLOSING INFO ================= */
 
   useEffect(() => {
-    clients.forEach(async (client) => {
-      const online =
-        resolveHeartbeatStatus(client.lastSeen) === "online"
-      if (!online) return
-
-      const snap = await getDocs(
-        query(
-          collection(db, "commands"),
-          where("clientId", "==", client.id)
-        )
-      )
-
-      if (snap.empty) return
-
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-
-      const latest = snap.docs
-        .map((d) => d.data())
-        .filter(
-          (c) =>
-            c.queryId === "kvshJ7oJ4x8GXgZOi950" &&
-            c.status === "success" &&
-            c.createdAt?.toDate() >= today
-        )
-        .sort(
-          (a, b) =>
-            b.createdAt.toDate().getTime() -
-            a.createdAt.toDate().getTime()
-        )[0]
-
-      if (!latest?.resultsPath) return
-
-      const rows = await getDocs(
-        collection(db, `${latest.resultsPath}/rows`)
-      )
-      if (rows.empty) return
-
-      const row = rows.docs[0].data()
-
-      setClosingInfo((prev) => ({
-        ...prev,
-        [client.id]: {
-          lastClosingDate: row.lastdate ?? "—",
-          lastClosingBalance: row.closingbalance ?? "—",
-        },
-      }))
-    })
-  }, [clients])
-  useEffect(() => {
   async function loadEmails() {
     const snap = await getDocs(collection(db, "users"))
 
@@ -133,7 +83,10 @@ useEffect(() => {
       }
     })
 
-    setClosingInfo(map)
+    setClosingInfo(prev => ({
+  ...prev,
+  ...map
+}))
   }
 
   loadBalances()

@@ -576,7 +576,7 @@ return(
 <div className="p-10 space-y-6">
 
 <h1 className="text-2xl font-bold">
-Multi Client Command Runner
+Multi Client Get Data
 </h1>
 
 <div className="flex gap-4">
@@ -594,7 +594,7 @@ onChange={(e)=>setSaveMode(e.target.value as any)}
 className="border px-3 py-2 rounded"
 >
 
-<option value="firebase">Online (Firebase)</option>
+<option value="firebase">Online</option>
 <option value="local">Local Server</option>
 <option value="both">Both</option>
 
