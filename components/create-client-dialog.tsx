@@ -17,7 +17,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { getFirestore, collection, addDoc } from "firebase/firestore"
 import { districts } from "@/lib/districts"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
@@ -44,21 +43,24 @@ export function CreateClientDialog({ onSuccess }: CreateClientDialogProps) {
     console.log("[v0] Creating client:", { name, status })
 
     try {
-      const db = getFirestore()
       const clientId = `client_${Date.now()}_${Math.random().toString(36).substring(7)}`
 
-      const clientData = {
-        name,
-        district,
-        status,
-        clientId,
-        agentUid: null,
-        createdAt: new Date().toISOString(),
-        lastSeen: null,
-      }
+      const response = await fetch('/api/clients/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_name: name,
+          district,
+          status,
+        }),
+        credentials: 'include',
+      })
 
-      const clientsRef = collection(db, "clients")
-      const docRef = await addDoc(clientsRef, clientData)
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create client')
+      }
 
       console.log("[v0] Client created successfully:", clientId)
 
@@ -69,6 +71,7 @@ export function CreateClientDialog({ onSuccess }: CreateClientDialogProps) {
       setOpen(false)
       setName("")
       setStatus("active")
+      setDistrict("")
       onSuccess()
     } catch (error: any) {
       console.error("[v0] Create client error:", error)

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { adminDb } from "@/lib/firebase-admin"
+import { getReportByClientNameAndDate } from "@/lib/db-queries"
 import { logPushStatus } from "@/lib/pushLogger"
 import https from "https"
 export const runtime = "nodejs"
@@ -84,15 +84,12 @@ export async function POST(req: Request) {
 
   for (const clientName of clientNames) {
     try {
-      const docId = `${clientName}_${fromDate}`
-      const snap = await adminDb.collection("final_reports").doc(docId).get()
+      const report = await getReportByClientNameAndDate(clientName, fromDate)
 
-      if (!snap.exists) {
+      if (!report) {
         results.push({ clientName, error: "Report not found" })
         continue
       }
-
-      const report = snap.data()!
       const depositLoanResponses: any[] = []
       const jewelResponses: any[] = []
 
@@ -130,7 +127,7 @@ export async function POST(req: Request) {
           depositLoanResponses.push(res)
 
           await logPushStatus({
-            source: "FIREBASE",
+            source: "POSTGRESQL",
             clientName,
             fromDate,
             module: "DEPOSIT/LOAN/MEMBER",
@@ -162,7 +159,7 @@ export async function POST(req: Request) {
           jewelResponses.push(res)
 
           await logPushStatus({
-            source: "FIREBASE",
+            source: "POSTGRESQL",
             clientName,
             fromDate,
             module: "JEWEL",

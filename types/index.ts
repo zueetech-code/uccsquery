@@ -1,28 +1,26 @@
-import { Timestamp } from "firebase/firestore"
 export interface Client {
-  district: string
+  id: number
+  client_id: string
+  client_name: string
   email: string
-  company: any
-  id: string
-  name: string
+  district?: string
   status: "active" | "disabled"
-  agentUid?: string
-  createdAt: string
-  lastSeen?: string | null
-  heartbeatStatus?: "online" | "offline"
+  online_status?: "online" | "offline"
+  last_heartbeat?: string | null
+  data?: Record<string, any>
+  created_at: string
+  updated_at: string
 }
 
 export interface Agent {
-  uid: string
+  id: number
+  agent_id: string
   email: string
-  role: string
-  clientId: string
-  // from users
-  createdAt: string
-
-  // 🔥 from agent_heartbeats
-  lastLogin?: string | null
-  heartbeatStatus?: "online" | "offline"
+  full_name?: string
+  status: "active" | "inactive"
+  last_heartbeat?: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface DatabaseConfig {
@@ -47,27 +45,23 @@ export interface Query {
 }
 
 export interface Command {
-  resultsPath: boolean
-  queryType: string
-  sql: any
-  queryName: any
-  executionTime: any
-  id: string
-  clientId: string
-  queryId: string
-  variables: Record<string, any>
+  id: number
+  client_id: number
+  command_type: string
+  command_data?: Record<string, any>
   status: "pending" | "running" | "success" | "failed"
-  result?: any
+  result?: Record<string, any>
   error?: string
-  createdAt: string
-  completedAt?: string
+  created_at: string
+  updated_at?: string
 }
 
 export interface Engineer {
-  uid: string
+  id: number
+  engineer_id: string
   email: string
-  role: string
-  assignedClients: string[] // Array of client IDs this engineer can access
-  createdAt: string
-  lastLogin?: string
+  full_name?: string
+  assigned_clients?: string[]
+  created_at: string
+  updated_at: string
 }

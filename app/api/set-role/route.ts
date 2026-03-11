@@ -1,22 +1,29 @@
 import { NextResponse } from "next/server"
-import admin from "firebase-admin"
-
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(
-      JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY!)
-    ),
-  })
-}
+import { findByColumn, update } from "@/lib/db-client"
 
 export async function POST(req: Request) {
   try {
     const { uid, role } = await req.json()
 
-    await admin.auth().setCustomUserClaims(uid, { role })
+    if (!uid || !role) {
+      return NextResponse.json({ error: "Missing uid or role" }, { status: 400 })
+    }
+
+    // Find user by uid
+    const user = await findByColumn('users', 'uid', uid)
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    // Update user role
+    await update('users', user.id, {
+      role,
+      is_admin: role === 'admin',
+    })
 
     return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: "Failed" }, { status: 500 })
+  } catch (error: any) {
+    console.error("Set role error:", error)
+    return NextResponse.json({ error: error.message || "Failed" }, { status: 500 })
   }
 }

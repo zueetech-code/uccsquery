@@ -1,4 +1,4 @@
-import { adminDb } from "@/lib/firebase-admin"
+import { query, update } from "@/lib/db-client"
 
 let started = false
 
@@ -13,34 +13,19 @@ export function startCommandTimeoutWorker() {
 
     try {
 
-      const snap = await adminDb
-        .collection("commands")
-        .where("status", "==", "pending")
-        .get()
+      const commands = await query(
+        `SELECT * FROM commands WHERE status = $1 AND created_at < NOW() - INTERVAL '20 minutes'`,
+        ['pending']
+      )
 
-      const now = Date.now()
+      for (const cmd of commands) {
 
-      for (const doc of snap.docs) {
+        await update('commands', cmd.id, {
+          status: 'failed',
+          error: 'Timeout > 20 minutes',
+        })
 
-        const data: any = doc.data()
-
-        if (!data.createdAt) continue
-
-        const created = data.createdAt.toDate().getTime()
-
-        const diffMinutes = (now - created) / (1000 * 60)
-
-        if (diffMinutes > 20) {
-
-          await doc.ref.update({
-            status: "failed",
-            error: "Timeout > 20 minutes",
-            updatedAt: new Date()
-          })
-
-          console.log("Command timed out:", doc.id)
-
-        }
+        console.log("Command timed out:", cmd.id)
 
       }
 

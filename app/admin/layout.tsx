@@ -4,8 +4,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { AdminHeader } from "@/components/admin-header"
-import { onAuthStateChanged } from "firebase/auth"
-import { auth } from "@/lib/firebase-client"
+import { jwtDecode } from "jwt-decode"
 
 export default function AdminLayout({
   children,
@@ -18,15 +17,18 @@ export default function AdminLayout({
 
   /* ================= AUTH CHECK ================= */
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        window.location.href = "/login"
-        return
-      }
-
+    const checkAuth = async () => {
       try {
-        const token = await user.getIdTokenResult()
-        const role = token.claims.role as string
+        // Get the JWT token from cookies
+        const response = await fetch("/api/auth/check", { credentials: "include" })
+        
+        if (!response.ok) {
+          window.location.href = "/login"
+          return
+        }
+
+        const { user } = await response.json()
+        const role = user.role
 
         if (!["admin", "engineer", "agent", "ercs"].includes(role)) {
           window.location.href = "/login"
@@ -40,9 +42,9 @@ export default function AdminLayout({
         console.error("Auth error", err)
         window.location.href = "/login"
       }
-    })
+    }
 
-    return () => unsubscribe()
+    checkAuth()
   }, [])
 
   /* ================= LOADING OVERLAY ================= */

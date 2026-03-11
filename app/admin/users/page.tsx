@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { db } from "@/lib/firebase-client"
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -20,13 +18,12 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { auth } from "firebase-admin"
 
 type UserType = {
-  id: string
+  id: number
+  uid: string
   email: string
   role: string
-  active: boolean
 }
 
 export default function UsersPage() {
@@ -43,12 +40,13 @@ export default function UsersPage() {
   }, [])
 
   async function loadUsers() {
-    const snap = await getDocs(collection(db, "users"))
-    const list = snap.docs.map((d) => ({
-      id: d.id,
-      ...d.data(),
-    })) as UserType[]
-    setUsers(list)
+    try {
+      const response = await fetch("/api/admin/users", { credentials: 'include' })
+      const { users } = await response.json()
+      setUsers(users)
+    } catch (err) {
+      console.error("Error loading users:", err)
+    }
   }
 
   // Create User Function
@@ -85,29 +83,17 @@ export default function UsersPage() {
   }
 }
 
-  // Toggle active/inactive status
-  async function toggleActive(user: UserType) {
-  const action = user.active ? "deactivate" : "activate"
-
-  if (!confirm(`Are you sure you want to ${action} ${user.email}?`)) return
-
-  try {
-    const ref = doc(db, "users", user.id)
-    await updateDoc(ref, { active: !user.active })
-
-    alert(`User ${user.email} is now ${user.active ? "inactive" : "active"}`)
-    loadUsers()
-  } catch (err) {
-    alert("Failed to update user status")
-  }
-}
+  // Delete is now the only action available (no deactivate)
 
   // Delete user
   async function deleteUser(user: UserType) {
     if (!confirm(`Are you sure you want to delete ${user.email}?`)) return
 
     try {
-      const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" })
+      const res = await fetch(`/api/admin/users/${user.uid}`, { 
+        method: "DELETE",
+        credentials: 'include',
+      })
       const data = await res.json()
 
       if (!res.ok) {
@@ -124,33 +110,32 @@ export default function UsersPage() {
 
   // Update role for existing users
   async function updateUserRole(user: UserType, newRole: string) {
-  if (!confirm(`Change role of ${user.email} to ${newRole}?`)) return
+    if (!confirm(`Change role of ${user.email} to ${newRole}?`)) return
 
-  try {
-    const ref = doc(db, "users", user.id)
-    await updateDoc(ref, { role: newRole })
+    try {
+      const res = await fetch("/api/set-role", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          uid: user.uid,
+          role: newRole,
+        }),
+        credentials: 'include',
+      })
 
-    const res = await fetch("/api/set-role", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        uid: user.id,
-        role: newRole,
-      }),
-    })
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || "Failed to update role")
+      }
 
-    if (!res.ok) {
-      throw new Error("Failed to update auth claims")
+      alert(`User role updated to ${newRole}`)
+      loadUsers()
+    } catch (err: any) {
+      alert(err.message || "Failed to update user role")
     }
-
-    alert(`User role updated to ${newRole}`)
-    loadUsers()
-  } catch (err) {
-    alert("Failed to update user role")
   }
-}
  
 
  return (
@@ -217,12 +202,11 @@ export default function UsersPage() {
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
 
         {/* Table Header */}
-        <div className="grid grid-cols-6 gap-4 px-6 py-4 bg-slate-100 text-sm font-semibold text-slate-600 border-b">
+        <div className="grid grid-cols-5 gap-4 px-6 py-4 bg-slate-100 text-sm font-semibold text-slate-600 border-b">
           <div>Email</div>
           <div>Role</div>
-          <div>Status</div>
           <div>Change Role</div>
-          <div>Toggle</div>
+          <div></div>
           <div>Delete</div>
         </div>
 
@@ -230,7 +214,7 @@ export default function UsersPage() {
         {users.map((user) => (
           <div
             key={user.id}
-            className="grid grid-cols-6 gap-4 px-6 py-4 items-center border-b last:border-0 hover:bg-slate-50 transition"
+            className="grid grid-cols-5 gap-4 px-6 py-4 items-center border-b last:border-0 hover:bg-slate-50 transition"
           >
             {/* Email */}
             <div className="font-medium text-slate-800 truncate">
@@ -241,17 +225,6 @@ export default function UsersPage() {
             <div>
               <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs">
                 {user.role}
-              </span>
-            </div>
-
-            {/* Status */}
-            <div>
-              <span
-                className={`px-3 py-1 rounded-full text-white text-xs font-medium ${
-                  user.active ? "bg-emerald-500" : "bg-slate-400"
-                }`}
-              >
-                {user.active ? "Active" : "Inactive"}
               </span>
             </div>
 
@@ -275,16 +248,8 @@ export default function UsersPage() {
               </Select>
             </div>
 
-            {/* Activate / Deactivate */}
-            <div>
-              <Button
-                size="sm"
-                variant={user.active ? "destructive" : "default"}
-                onClick={() => toggleActive(user)}
-              >
-                {user.active ? "Deactivate" : "Activate"}
-              </Button>
-            </div>
+            {/* Empty column */}
+            <div></div>
 
             {/* Delete */}
             <div>

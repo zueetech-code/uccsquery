@@ -134,5 +134,41 @@ export async function getAllAgents() {
 }
 
 export async function getAgentByAgentId(agentId: string) {
-  return queryOne('SELECT * FROM agents WHERE agent_id = $1', [agentId]);
+  return queryOne('SELECT * FROM agents WHERE agent_id = $1', [agentId])
+}
+
+export async function getClientsByIds(clientIds: string[]) {
+  if (clientIds.length === 0) return []
+  const placeholders = clientIds.map((_, i) => `$${i + 1}`).join(',')
+  return query(`SELECT * FROM clients WHERE client_id IN (${placeholders})`, clientIds)
+}
+
+export async function getOnlineHeartbeats() {
+  return query(
+    `SELECT DISTINCT h.client_id, c.client_id 
+     FROM agent_heartbeats h
+     JOIN clients c ON h.client_id = c.id
+     WHERE h.status = $1 AND h.created_at > NOW() - INTERVAL '1 hour'`,
+    ['online']
+  )
+}
+
+export async function getLatestSuccessfulCommands(clientId: string, commandType: string, limit: number = 1) {
+  return query(
+    `SELECT c.* FROM commands c
+     JOIN clients cl ON c.client_id = cl.id
+     WHERE cl.client_id = $1 AND c.command_type = $2 AND c.status = $3
+     ORDER BY c.created_at DESC LIMIT $4`,
+    [clientId, commandType, 'success', limit]
+  )
+}
+
+export async function getReportByClientNameAndDate(clientName: string, date: string) {
+  return queryOne(
+    `SELECT r.* FROM reports r
+     JOIN clients c ON r.client_id = c.id
+     WHERE c.client_name = $1 AND DATE(r.created_at) = $2`,
+    [clientName, date]
+  )
+};
 }

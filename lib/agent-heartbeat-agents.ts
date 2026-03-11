@@ -1,26 +1,24 @@
 "use client"
 
-import { collection, query, where, onSnapshot } from "firebase/firestore"
-import { db } from "@/lib/firebase-client"
+import { queryOne } from "@/lib/db-client"
 
 /**
- * Realtime ONLY — no initial attach
+ * Fetch agent heartbeat from database
  */
-export function subscribeAgentHeartbeat(
-  agentUid: string,
-  onUpdate: (lastSeen: string | null) => void
-) {
-  const q = query(
-    collection(db, "agent_heartbeats"),
-    where("agentUid", "==", agentUid)
-  )
+export async function getAgentHeartbeat(
+  agentUid: string
+): Promise<string | null> {
+  try {
+    const heartbeat = await queryOne(
+      `SELECT last_heartbeat FROM agent_heartbeats 
+       WHERE agent_id = (SELECT id FROM agents WHERE agent_id = $1)
+       ORDER BY created_at DESC LIMIT 1`,
+      [agentUid]
+    )
 
-  return onSnapshot(q, (snap) => {
-    if (snap.empty) {
-      onUpdate(null)
-      return
-    }
-
-    onUpdate(snap.docs[0].data().lastSeen ?? null)
-  })
+    return heartbeat?.last_heartbeat ?? null
+  } catch (err) {
+    console.error("Error fetching agent heartbeat:", err)
+    return null
+  }
 }
