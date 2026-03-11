@@ -1,34 +1,44 @@
 import { NextRequest, NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
+import { insert, findAll, query } from "@/lib/db-client"
+import { hashPassword } from "@/lib/auth"
 
 export async function POST(req: Request) {
   try {
-    const { email, password, role } = await req.json()
+    const { email, password, role, fullName } = await req.json()
 
     if (!email || !password || !role) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 })
     }
 
-    // 1️⃣ Create Auth user
-    const userRecord = await adminAuth.createUser({
+    // Check if user already exists
+    const existing = await query('SELECT id FROM users WHERE email = $1', [email])
+    if (existing.length > 0) {
+      return NextResponse.json({ error: "User already exists" }, { status: 400 })
+    }
+
+    // Hash password and create user
+    const passwordHash = await hashPassword(password)
+    const uid = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    const user = await insert('users', {
+      uid,
       email,
-      password,
-    })
-
-    const uid = userRecord.uid
-
-    // 2️⃣ Set role claim
-    await adminAuth.setCustomUserClaims(uid, { role })
-
-    // 3️⃣ Save to Firestore
-    await adminDb.collection("users").doc(uid).set({
-      email,
+      password_hash: passwordHash,
+      full_name: fullName || '',
       role,
-      active: true,
-      createdAt: new Date(),
+      is_admin: role === 'admin',
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, user })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+export async function GET() {
+  try {
+    const users = await findAll('users')
+    return NextResponse.json({ users })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

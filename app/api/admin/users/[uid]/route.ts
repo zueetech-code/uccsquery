@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
+import { deleteRecord, findByColumn, update, query } from "@/lib/db-client"
+import { hashPassword } from "@/lib/auth"
 
 // DELETE User
 export async function DELETE(req: NextRequest, context: { params: { uid: string } }) {
@@ -10,31 +11,43 @@ export async function DELETE(req: NextRequest, context: { params: { uid: string 
   }
 
   try {
-    await adminAuth.deleteUser(uid)
-    await adminDb.collection("users").doc(uid).delete()
+    // Find user by uid and delete
+    const user = await findByColumn('users', 'uid', uid)
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+    
+    await deleteRecord('users', user.id)
     return NextResponse.json({ message: "User deleted successfully" })
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to delete user" }, { status: 500 })
   }
 }
 
-// POST User (optional, can also be separate)
-export async function POST(req: NextRequest) {
-  const { email, password, role } = await req.json()
-  if (!email || !password || !role) {
-    return NextResponse.json({ error: "Missing fields" }, { status: 400 })
+// PUT User - Update user role/details
+export async function PUT(req: NextRequest, context: { params: { uid: string } }) {
+  const { uid } = await context.params
+  
+  if (!uid) {
+    return NextResponse.json({ error: "User ID missing" }, { status: 400 })
   }
+
   try {
-    const userRecord = await adminAuth.createUser({ email, password })
-    const uid = userRecord.uid
-    await adminAuth.setCustomUserClaims(uid, { role })
-    await adminDb.collection("users").doc(uid).set({
-      email,
-      role,
-      active: true,
-      createdAt: new Date(),
-    })
-    return NextResponse.json({ success: true })
+    const body = await req.json()
+    const { email, role, fullName } = body
+
+    const user = await findByColumn('users', 'uid', uid)
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    const updateData: Record<string, any> = {}
+    if (email) updateData.email = email
+    if (role) updateData.role = role
+    if (fullName) updateData.full_name = fullName
+
+    const updated = await update('users', user.id, updateData)
+    return NextResponse.json({ success: true, user: updated })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }

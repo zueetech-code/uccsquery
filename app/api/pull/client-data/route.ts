@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { adminDb } from "@/lib/firebase-admin"
+import { getReportByClientIdAndDate, getLatestReportByClientId } from "@/lib/db-queries"
 
 export async function POST(req: Request) {
 
@@ -36,35 +36,21 @@ export async function POST(req: Request) {
   const promises = clientIds.map(async (clientId) => {
     try {
 
-      let docRef
+      let report
 
-      // If fromDate provided → deterministic ID
+      // If fromDate provided → fetch report for that date
       if (fromDate) {
-        const docId = `${clientId}_${fromDate}`
-        docRef = adminDb.collection("final_reports").doc(docId)
+        report = await getReportByClientIdAndDate(clientId, fromDate)
       } else {
         // If no date → fetch latest report
-        const snap = await adminDb
-          .collection("final_reports")
-          .where("clientId", "==", clientId)
-          .orderBy("updatedAt", "desc")
-          .limit(1)
-          .get()
-
-        if (snap.empty) {
-          return { clientId, error: "No report found" }
-        }
-
-        return { clientId, data: snap.docs[0].data() }
+        report = await getLatestReportByClientId(clientId)
       }
 
-      const docSnap = await docRef.get()
-
-      if (!docSnap.exists) {
-        return { clientId, error: "Report not found" }
+      if (!report) {
+        return { clientId, error: "No report found" }
       }
 
-      return { clientId, data: docSnap.data() }
+      return { clientId, data: report }
 
     } catch (error) {
       console.error(error)

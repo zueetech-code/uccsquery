@@ -1,55 +1,37 @@
 import { NextResponse } from "next/server"
-import { adminDb } from "@/lib/firebase-admin"
-import { FieldValue, Timestamp } from "firebase-admin/firestore"
+import { getAllClients, getCommandsCreatedToday, createCommand } from "@/lib/db-queries"
 
 export async function GET() {
   try {
-    const start = new Date()
-    start.setHours(0, 0, 0, 0)
-
-    const clientsSnap = await adminDb.collection("clients").get()
+    const clients = await getAllClients()
     let created = 0
 
-    for (const c of clientsSnap.docs) {
-      const clientId = c.id
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
 
+    for (const client of clients) {
       // ✅ CHECK IF COMMAND EXISTS TODAY
-      // ✅ INDEX-FREE: only ONE where
-const existingSnap = await adminDb
-  .collection("commands")
-  .where("clientId", "==", clientId)
-  .get()
+      const existingCommands = await getCommandsCreatedToday("kvshJ7oJ4x8GXgZOi950", client.client_id)
 
-let alreadyExecutedToday = false
+      if (existingCommands.length > 0) {
+        continue
+      }
 
-const today = new Date()
-today.setHours(0, 0, 0, 0)
+      // 🔥 CREATE COMMAND
+      try {
+        await createCommand({
+          client_id: client.client_id,
+          command_type: "kvshJ7oJ4x8GXgZOi950",
+          command_data: {
+            Fromdate: new Date().toISOString().split("T")[0],
+          },
+          status: "pending",
+        })
 
-existingSnap.forEach(doc => {
-  const cmd = doc.data()
-
-  if (
-    cmd.queryId === "kvshJ7oJ4x8GXgZOi950" &&
-    cmd.createdAt?.toDate() >= today
-  ) {
-    alreadyExecutedToday = true
-  }
-})
-
-if (alreadyExecutedToday) continue
-
-      // 🔥 CREATE COMMAND — IDENTICAL TO EXECUTE QUERY PAGE
-      await adminDb.collection("commands").add({
-        clientId,
-        status: "pending",
-        createdAt: FieldValue.serverTimestamp(), // 🔴 IMPORTANT
-        queryId: "kvshJ7oJ4x8GXgZOi950",
-        variables: {
-          Fromdate: new Date().toISOString().split("T")[0],
-        },
-      })
-
-      created++
+        created++
+      } catch (error) {
+        console.error(`[auto-execute] Failed to create command for client ${client.client_id}:`, error)
+      }
     }
 
     return NextResponse.json({ created })

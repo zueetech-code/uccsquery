@@ -3,9 +3,7 @@
 import type React from "react"
 import { Mail, Lock, Loader2 } from "lucide-react";
 
-import { useState, useEffect } from "react"
-import { signInWithEmailAndPassword } from "firebase/auth"
-import { auth } from "@/lib/firebase-client"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,22 +24,29 @@ export default function LoginPage() {
     try {
       console.log("[v0] Attempting login for:", email)
 
-      // Sign in with Firebase
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
-      console.log("[v0] User authenticated:", user.uid)
+      // Sign in with local auth
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-      await user.getIdToken(true)
-      const idTokenResult = await user.getIdTokenResult()
-      console.log("[v0] Token claims:", idTokenResult.claims)
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Login failed')
+      }
 
-      const role = idTokenResult.claims.role
+      const data = await response.json()
+      console.log("[v0] User authenticated:", data.user.uid)
+
+      const role = data.user.role
       if (role !== "admin" && role !== "engineer" && role !== "agent" && role !== "ercs") {
         console.log("[v0] User does not have admin, engineer, or agent role")
         setError(
           "Access denied. Admin, Engineer, or Agent privileges required. Please contact system administrator to set the appropriate role.",
         )
-        await auth.signOut()
         setLoading(false)
         return
       }
@@ -56,13 +61,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error("[v0] Login error:", err)
-      if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
-        setError("Invalid email or password")
-      } else if (err.code === "auth/too-many-requests") {
-        setError("Too many failed attempts. Please try again later.")
-      } else {
-        setError(err.message || "Login failed. Please try again.")
-      }
+      setError(err.message || "Login failed. Please try again.")
       setLoading(false)
     }
   }

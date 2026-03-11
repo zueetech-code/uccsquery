@@ -7,7 +7,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "db:setup": "node scripts/setup-db.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -46,8 +47,8 @@
     "date-fns": "4.1.0",
     "dotenv": "^17.3.1",
     "embla-carousel-react": "8.5.1",
-    "firebase": "^12.10.0",
-    "firebase-admin": "^13.7.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.1.2",
     "fs": "^0.0.1-security",
     "input-otp": "1.4.1",
     "jspdf": "^2.5.2",
