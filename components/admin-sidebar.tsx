@@ -83,6 +83,12 @@ const engineerMenuItems = [
     icon: LayoutDashboard,
     roles: ["engineer"],
   },
+   {
+    title: "Users",
+    href: "/admin/users",
+    icon: Users2,
+    roles: ["engineer"],
+  },
   {
     title: "Clients",
     href: "/admin/clients",
