@@ -90,15 +90,21 @@ const engineerMenuItems = [
     roles: ["engineer"],
   },
   {
-    title: "Agents",
-    href: "/admin/agents",
-    icon: UserCog,
-    roles: ["engineer"],
-  },
-  {
     title: "Execute Query",
     href: "/admin/execute-query",
     icon: Play,
+    roles: ["engineer"],
+  },
+  {
+    title: "Push Data to RCS",  // New menu item
+    href: "/admin/push-data",   // New route for push data page
+    icon: Play,                 // Appropriate icon
+    roles: ["engineer"],           // Only for admin role
+  },
+   {
+    title: "Data",
+    href: "/admin/multi-client-dashboard",
+    icon: ScrollText,
     roles: ["engineer"],
   },
   {
