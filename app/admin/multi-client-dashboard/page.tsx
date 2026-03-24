@@ -528,39 +528,21 @@ function formatDateDMY(dateValue: any) {
 }
 async function fetchLastClosingDates() {
 
+  const snap = await getDocs(collection(db,"cashbalances"))
+
   const map:any = {}
 
-  for (const c of clients) {
+  snap.docs.forEach(doc => {
+    const data:any = doc.data()
 
-    const q = query(
-      collection(db,"cashbalances"),
-      where("clientName","==",c.name),
-      orderBy("lastClosingDate","desc"),
-      limit(1)
-    )
+    const lastDate =
+      data.lastClosingDate?.toDate?.() ||
+      data.lastClosingDate
 
-    const snap = await getDocs(q)
-
-    if(!snap.empty){
-
-      const data:any = snap.docs[0].data()
-
-      const lastDate =
-        data.lastClosingDate?.toDate?.() ||
-        data.lastClosingDate
-
-      map[c.id] = formatDateDMY(lastDate)
-
-    }else{
-
-      map[c.id] = "-"
-
-    }
-
-  }
+    map[data.clientName] = formatDateDMY(lastDate)
+  })
 
   setLastClosingDates(map)
-
 }
 useEffect(() => {
 
@@ -659,7 +641,7 @@ return(
 {getEmail(c.id)}
 </td>
 <td className="border p-2">
-  {lastClosingDates[c.id] || "-"}
+  {lastClosingDates[c.name] || "-"}
 </td>
 
 <td className="border p-2">
