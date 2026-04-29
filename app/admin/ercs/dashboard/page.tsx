@@ -23,8 +23,10 @@ export default function ErcsDashboardPage() {
         router.push("/admin/dashboard")
         return
       }
+      
       setLoading(false)
     }
+    
     checkRole()
   }, [router])
 
@@ -48,7 +50,7 @@ export default function ErcsDashboardPage() {
           Welcome to the ERCS Data Management Panel
         </h2>
         <p className="text-sm text-muted-foreground">
-          Submit and manage ERCS records securely
+          Here you can view and manage all SLDB clients, check their status, and ensure data integrity. Use the button below to get started.
         </p>
       </div>
 
@@ -58,18 +60,18 @@ export default function ErcsDashboardPage() {
           <CardContent className="p-8 flex flex-col gap-6">
             <div className="flex items-center gap-4">
               <FileText className="h-10 w-10 opacity-90" />
-              <h3 className="text-2xl font-bold">Fill Data</h3>
+              <h3 className="text-2xl font-bold">Open Clients</h3>
             </div>
 
             <p className="text-white/80">
-              Submit and manage ERCS related records securely and efficiently.
+              Access the client management dashboard to view all registered clients, monitor their status, and manage their configurations. This is your central hub for ensuring all client data is accurate and up-to-date.
             </p>
 
             <button
-              onClick={() => router.push("/admin/fill-data/ercs")}
+              onClick={() => router.push("/admin/clients")}
               className="self-start rounded-full bg-white text-indigo-600 px-6 py-3 text-sm font-semibold shadow-md hover:bg-gray-100"
             >
-              Open Fill Data
+              Go to Clients
             </button>
           </CardContent>
         </Card>
