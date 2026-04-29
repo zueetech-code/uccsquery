@@ -50,7 +50,7 @@ export default function ErcsDashboardPage() {
           Welcome to the ERCS Data Management Panel
         </h2>
         <p className="text-sm text-muted-foreground">
-          Here you can view and manage all SLDB clients, check their status, and ensure data integrity. Use the button below to get started.
+          Here you can view and manage all UCCS clients, check their status, and ensure data integrity. Use the button below to get started.
         </p>
       </div>
 
