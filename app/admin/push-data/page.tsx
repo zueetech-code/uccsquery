@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { db } from "@/lib/firebase-client";
 import { collection, getDocs } from "firebase/firestore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,10 @@ export default function PushDataPage() {
 
   const [view, setView] = useState<View>("NONE");
   const [viewHistory, setViewHistory] = useState<View[]>([]);
+ 
+
+  const [pushLoading, setPushLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState("");
@@ -241,7 +246,7 @@ export default function PushDataPage() {
     if (selectedClients.length === 0) return;
 
     try {
-      setLoading(true);
+      setPushLoading(true);
 
       const apiEndpoint =
         submissionSource === "FIREBASE"
@@ -269,27 +274,60 @@ export default function PushDataPage() {
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      setPushLoading(false);
     }
   }
+  async function handleDelete(clientName: string) {
+  if (!confirm(`Delete all data for ${clientName}?`)) return;
+
+  try {
+    setDeleteLoading(true);
+
+    await fetch("/api/delete-client-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        clientName,
+        date: selectedDate,
+      }),
+    });
+
+    // reload everything
+    await loadFirebaseSubmitted();
+    await loadLocalSubmitted();
+    await loadPushLogs();
+
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setDeleteLoading(false);
+  }
+}
 
   /* ================= UI ================= */
 
   return (
     <div className="space-y-6">
 
-      {loading && (
-        <div className="fixed inset-0 z-50 bg-blue-600/20 flex items-center justify-center">
-          <div className="bg-white px-10 py-8 rounded-xl shadow-xl text-center space-y-4">
-            <div className="flex justify-center">
-              <div className="animate-spin h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+      {(pushLoading || deleteLoading) && (
+            <div className="fixed inset-0 z-50 bg-blue-600/20 flex items-center justify-center">
+              <div className="bg-white px-10 py-8 rounded-xl shadow-xl text-center space-y-4">
+                
+                <div className="flex justify-center">
+                  <div className="animate-spin h-10 w-10 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+                </div>
+
+                <p className="text-lg font-semibold text-blue-700">
+                  {pushLoading
+                    ? "Pushing data to RCS..."
+                    : "Deleting data..."}
+                </p>
+
+              </div>
             </div>
-            <p className="text-lg font-semibold text-blue-700">
-              Pushing data to RCS...
-            </p>
-          </div>
-        </div>
-      )}
+       )}
       <div className="flex items-center gap-3">
 
           <label className="font-semibold">
@@ -492,6 +530,7 @@ export default function PushDataPage() {
           <th className="border px-3 py-2 text-left">Date</th>
           <th className="border px-3 py-2 text-left">Modules</th>
           <th className="border px-3 py-2 text-left">Status</th>
+          <th className="border px-3 py-2 text-left">Actions</th>
         </tr>
       </thead>
 
@@ -523,6 +562,14 @@ export default function PushDataPage() {
                 </span>
               )}
             </td>
+            <td className="border px-3 py-2">
+            <button
+              onClick={() => handleDelete(row.client_name)}
+              className="bg-red-500 text-white px-3 py-1 rounded"
+            >
+              Delete
+            </button>
+          </td>
 
           </tr>
         ))}
