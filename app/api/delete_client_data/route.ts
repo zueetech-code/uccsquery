@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     // 🧨 1. DELETE FROM push_logs (PostgreSQL)
     await client.query(
       `
-      DELETE FROM push_logs
+      DELETE FROM uccs_push_logs
       WHERE client_name = $1
       AND from_date::date = $2
       `,
