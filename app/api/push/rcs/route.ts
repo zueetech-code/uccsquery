@@ -111,6 +111,7 @@ export async function POST(req: Request) {
             date: row.date,
             schm_code: row.schm_code,
             branch_name: row.branch_name,
+            ercs_society_id: row.ercs_society_id,
             modules: row.modules,
             scheme_description: row.scheme_description,
             upto_month_count: Number(row.upto_month_count || 0),
@@ -143,11 +144,12 @@ export async function POST(req: Request) {
       for (let i = 0; i < (report.jewel || []).length; i += BATCH_SIZE) {
         const batch = report.jewel.slice(i, i + BATCH_SIZE)
 
-        await Promise.all(batch.map(async (row: { sds_code: any; date: any; branch_name: any; no_of_loans: any; gross_weight_grams: any; net_weight_grams: any; market_value_crores: any; net_market_value_crores: any }) => {
+        await Promise.all(batch.map(async (row: { sds_code: any; date: any; branch_name: any; ercs_society_id: any; no_of_loans: any; gross_weight_grams: any; net_weight_grams: any; market_value_crores: any; net_market_value_crores: any }) => {
           const payload = {
             sds_code: row.sds_code,
             date: row.date,
             branch_name: row.branch_name,
+            ercs_society_id: row.ercs_society_id,
             no_of_loans: Number(row.no_of_loans || 0),
             gross_weight_grams: Number(row.gross_weight_grams || 0),
             net_weight_grams: Number(row.net_weight_grams || 0),
