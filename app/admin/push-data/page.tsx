@@ -305,6 +305,38 @@ export default function PushDataPage() {
     setDeleteLoading(false);
   }
 }
+async function handleDeleteFromToBePushed(clientName: string) {
+  if (!confirm(`Delete all data for ${clientName}?`)) return;
+
+  try {
+    setDeleteLoading(true);
+
+    await fetch("/api/delete-client-data/delete-data", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        clientName,
+        date: selectedDate,
+      }),
+    });
+
+    await loadFirebaseSubmitted();
+    await loadLocalSubmitted();
+    await loadPushLogs();
+
+    // remove deleted client from selected list
+    setSelectedClients((prev) =>
+      prev.filter((c) => c !== clientName)
+    );
+
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setDeleteLoading(false);
+  }
+}
 
   /* ================= UI ================= */
 
@@ -485,20 +517,32 @@ export default function PushDataPage() {
 
           <div className="max-h-60 overflow-y-auto border p-2 rounded">
             {toBePushed.map((c, i) => (
-              <label key={`${c}-${i}`} className="flex gap-2">
-                <input
-                  type="checkbox"
-                  checked={selectedClients.includes(c)}
-                  onChange={(e) =>
-                    setSelectedClients((p) =>
-                      e.target.checked
-                        ? [...p, c]
-                        : p.filter((x) => x !== c)
-                    )
-                  }
-                />
-                {c}
-              </label>
+              <div
+                key={`${c}-${i}`}
+                className="flex items-center justify-between border-b py-2"
+              >
+                <label className="flex gap-2 items-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedClients.includes(c)}
+                    onChange={(e) =>
+                      setSelectedClients((p) =>
+                        e.target.checked
+                          ? [...p, c]
+                          : p.filter((x) => x !== c)
+                      )
+                    }
+                  />
+                  {c}
+                </label>
+
+                <button
+                  onClick={() => handleDeleteFromToBePushed(c)}
+                  className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                >
+                  Delete
+                </button>
+              </div>
             ))}
           </div>
 
